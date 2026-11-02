@@ -25,9 +25,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 4. Automatické přijetí Android SDK licencí
+      - name: 4. Automatické přijetí licencí a instalace Android SDK 36
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
 
       - name: 5. Instalace závislostí projektu
         run: npm install --legacy-peer-deps
