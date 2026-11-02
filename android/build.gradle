@@ -25,6 +25,9 @@ allprojects {
     tasks.withType(com.android.build.gradle.internal.tasks.CheckAarMetadataTask).configureEach {
         enabled = false
     }
+    tasks.matching { it.name.startsWith("bundle") && it.name.endsWith("Aar") }.configureEach {
+        enabled = false
+    }
 }
 
 subprojects {

@@ -22,13 +22,14 @@ jobs:
       - name: 3. Nastavení Java (JDK 21)
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '21'
 
-      - name: 4. Automatické přijetí licencí a instalace Android SDK 36
+      - name: 4. Automatické přijetí licencí a instalace Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;36.0.0" || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;35.0.0" || true
+        continue-on-error: true
 
       - name: 5. Instalace závislostí projektu
         run: npm install --legacy-peer-deps
@@ -45,7 +46,7 @@ jobs:
       - name: 9. Sestavení nativního Android APK balíčku (Gradle)
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
       - name: 10. Uložení APK jako stahovatelného artefaktu
         uses: actions/upload-artifact@v4
