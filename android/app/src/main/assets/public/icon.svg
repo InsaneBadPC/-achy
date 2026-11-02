@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="comicBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stopColor="#facc15"/>
+      <stop offset="100%" stopColor="#f97316"/>
+    </linearGradient>
+    <pattern id="comicDots" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="10" cy="10" r="3.5" fill="#000000" opacity="0.08" />
+    </pattern>
+  </defs>
+
+  <!-- Comic Background -->
+  <rect width="512" height="512" rx="100" fill="url(#comicBg)"/>
+  <rect width="512" height="512" rx="100" fill="url(#comicDots)"/>
+  <rect width="512" height="512" rx="100" fill="none" stroke="#000000" stroke-width="16"/>
+
+  <!-- Comic Action Starburst -->
+  <polygon points="256,40 310,130 410,80 390,190 500,220 420,290 490,380 380,380 370,490 270,420 190,490 190,390 80,410 130,300 30,250 130,190 70,100 180,120"
+    fill="#ffffff" stroke="#000000" stroke-width="12" stroke-linejoin="round" />
+
+  <!-- Shadow of Chess King Character -->
+  <ellipse cx="264" cy="410" rx="90" ry="24" fill="#000000" opacity="0.3"/>
+
+  <!-- Chess King Minion Body (Cartoon Pop Art) -->
+  <path d="M190,390 C180,310 190,260 256,260 C322,260 332,310 322,390 Z" fill="#38bdf8" stroke="#000000" stroke-width="12" stroke-linejoin="round"/>
+  
+  <!-- Belt & Golden Buckle -->
+  <rect x="186" y="340" width="140" height="24" fill="#f43f5e" stroke="#000000" stroke-width="8"/>
+  <rect x="238" y="334" width="36" height="36" rx="6" fill="#facc15" stroke="#000000" stroke-width="8"/>
+
+  <!-- Head -->
+  <circle cx="256" cy="230" r="70" fill="#fef08a" stroke="#000000" stroke-width="12"/>
+
+  <!-- Giant Comic Mustache -->
+  <path d="M256,244 C240,220 190,230 190,260 C190,280 230,270 256,252 C282,270 322,280 322,260 C322,230 272,220 256,244 Z" fill="#b45309" stroke="#000000" stroke-width="9"/>
+
+  <!-- Googly Comic Eyes -->
+  <circle cx="230" cy="205" r="22" fill="#ffffff" stroke="#000000" stroke-width="8"/>
+  <circle cx="235" cy="205" r="9" fill="#000000"/>
+  <circle cx="232" cy="201" r="3" fill="#ffffff"/>
+
+  <circle cx="282" cy="205" r="22" fill="#ffffff" stroke="#000000" stroke-width="8"/>
+  <circle cx="277" cy="205" r="9" fill="#000000"/>
+  <circle cx="274" cy="201" r="3" fill="#ffffff"/>
+
+  <!-- Giant Golden Crown -->
+  <path d="M205,170 L210,110 L235,135 L256,90 L277,135 L302,110 L307,170 Z" fill="#facc15" stroke="#000000" stroke-width="10" stroke-linejoin="round"/>
+  <circle cx="256" cy="90" r="10" fill="#ef4444" stroke="#000000" stroke-width="5"/>
+  <circle cx="210" cy="110" r="8" fill="#3b82f6" stroke="#000000" stroke-width="5"/>
+  <circle cx="302" cy="110" r="8" fill="#10b981" stroke="#000000" stroke-width="5"/>
+
+  <!-- Comic Action Text "POW!" Badge -->
+  <g transform="translate(350, 70) rotate(12)">
+    <polygon points="40,0 80,15 110,0 95,30 130,50 90,65 105,95 70,80 50,115 40,75 0,70 25,45 5,20 40,30" fill="#f43f5e" stroke="#000000" stroke-width="6"/>
+    <text x="60" y="58" font-family="Impact, sans-serif" font-weight="900" font-size="28" fill="#ffffff" text-anchor="middle" stroke="#000000" stroke-width="2">POW!</text>
+  </g>
+</svg>

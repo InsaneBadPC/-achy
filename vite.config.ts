@@ -21,6 +21,7 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-512x512.png',
         ],
+        manifestFilename: 'manifest.json',
         manifest: {
           id: '/',
           name: 'Wacky Chess Mayhem 3D',

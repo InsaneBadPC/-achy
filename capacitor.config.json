@@ -1,0 +1,8 @@
+{
+  "appId": "com.wackychess.app",
+  "appName": "Wacky Chess Mayhem 3D",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

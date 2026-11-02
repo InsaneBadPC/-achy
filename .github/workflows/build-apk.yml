@@ -1,0 +1,53 @@
+name: Sestavit Android APK
+
+on:
+  push: # Spustí se automaticky po KAŽDÉM pushi do libovolné větve repozitáře
+  pull_request: # Také při otevření nebo aktualizaci pull requestu
+  workflow_dispatch: # Možnost spustit ručně tlačítkem v záložce Actions
+
+jobs:
+  build-android-apk:
+    name: Sestavení nativního APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Stažení zdrojového kódu
+        uses: actions/checkout@v4
+
+      - name: 2. Nastavení Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 3. Nastavení Java (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: 4. Instalace závislostí projektu
+        run: npm install
+
+      - name: 5. Sestavení webové aplikace (Vite)
+        run: npm run build
+
+      - name: 6. Synchronizace s nativním Android projektem (Capacitor)
+        run: npx cap sync android
+
+      - name: 7. Nastavení spustitelnosti pro Gradle
+        run: chmod +x android/gradlew
+
+      - name: 8. Sestavení nativního Android APK balíčku (Gradle)
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: 9. Uložení APK jako stahovatelného artefaktu
+        uses: actions/upload-artifact@v4
+        with:
+          name: WackyChess-Android-Debug-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
