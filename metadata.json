@@ -1,0 +1,6 @@
+{
+  "name": "Wacky Chess Mayhem 3D",
+  "description": "Zábavné a vtipné 3D šachy s živými animovanými figurkami, záludnými pastmi, náhodnými bonusovými předměty a podporou AI, lokální hry a online multiplayeru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
