@@ -50,6 +50,7 @@ interface GameHUDProps {
   onReturnToTitle: () => void;
   onRestartGame: () => void;
   onDismissQuote: () => void;
+  onChangeGameMode?: (mode: GameMode) => void;
 }
 
 export const GameHUD: React.FC<GameHUDProps> = ({

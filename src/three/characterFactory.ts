@@ -502,7 +502,7 @@ export function createCharacterModel(
   const shieldMat = new THREE.MeshPhysicalMaterial({
     color: 0x38bdf8,
     transparent: true,
-    opacity: 0.4,
+    opacity: 0.45,
     roughness: 0.1,
     transmission: 0.85,
     ior: 1.3,
@@ -518,7 +518,7 @@ export function createCharacterModel(
   const iceMat = new THREE.MeshPhysicalMaterial({
     color: 0xa5f3fc,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.6,
     roughness: 0.2,
     transmission: 0.7,
   });
@@ -528,14 +528,51 @@ export function createCharacterModel(
   iceMesh.visible = false;
   root.add(iceMesh);
 
+  // Mega Hammer 3D attachment (hidden until equipped)
+  const hammerGroup = new THREE.Group();
+  hammerGroup.name = 'itemHammer';
+  const hammerHandle = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.035, 0.035, 0.55, 12),
+    new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.7 })
+  );
+  hammerHandle.rotation.z = Math.PI / 4;
+  hammerGroup.add(hammerHandle);
+  const hammerHead = new THREE.Mesh(
+    new THREE.BoxGeometry(0.32, 0.22, 0.22),
+    new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.8, roughness: 0.3 })
+  );
+  hammerHead.position.set(0.18, 0.18, 0);
+  hammerGroup.add(hammerHead);
+  hammerGroup.position.set(0.32, 0.45, 0.15);
+  hammerGroup.visible = false;
+  root.add(hammerGroup);
+
+  // Rocket Boots 3D attachment (hidden until equipped)
+  const rocketsGroup = new THREE.Group();
+  rocketsGroup.name = 'itemRockets';
+  const rocketMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.4, roughness: 0.3 });
+  const nozzleMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.7, roughness: 0.2 });
+  [-0.2, 0.2].forEach((xOffset) => {
+    const rocket = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 0.25, 12), rocketMat);
+    rocket.position.set(xOffset, 0.12, -0.05);
+    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 0.08, 12), nozzleMat);
+    nozzle.position.set(xOffset, 0.01, -0.05);
+    rocketsGroup.add(rocket);
+    rocketsGroup.add(nozzle);
+  });
+  rocketsGroup.visible = false;
+  root.add(rocketsGroup);
+
   // Face rotation: White faces forward (-Z direction, towards row 0), Black faces backward (+Z direction, towards row 7)
   root.rotation.y = isWhite ? 0 : Math.PI;
 
   return root;
 }
 
-// Update expression or status effects on 3D character
-export function updateCharacterState(model: THREE.Group, piece: { frozenTurns?: number; shield?: boolean; isDizzy?: boolean }) {
+export function updateCharacterState(
+  model: THREE.Group,
+  piece: { frozenTurns?: number; shield?: boolean; isDizzy?: boolean; equippedItem?: string }
+) {
   const shield = model.getObjectByName('bubbleShield');
   if (shield) {
     shield.visible = !!piece.shield;
@@ -544,6 +581,16 @@ export function updateCharacterState(model: THREE.Group, piece: { frozenTurns?: 
   const ice = model.getObjectByName('iceBlock');
   if (ice) {
     ice.visible = (piece.frozenTurns || 0) > 0;
+  }
+
+  const hammer = model.getObjectByName('itemHammer');
+  if (hammer) {
+    hammer.visible = piece.equippedItem === 'mega_hammer';
+  }
+
+  const rockets = model.getObjectByName('itemRockets');
+  if (rockets) {
+    rockets.visible = piece.equippedItem === 'rocket_boots';
   }
 
   const eyeLeft = model.getObjectByName('eyeLeft') as THREE.Mesh;

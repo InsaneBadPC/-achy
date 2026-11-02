@@ -1,57 +1,103 @@
-name: Sestavit Android APK
+name: Sestavit Android APK a Vytvořit Release
 
 on:
-  push: # Spustí se automaticky po KAŽDÉM pushi do libovolné větve repozitáře
-  pull_request: # Také při otevření nebo aktualizaci pull requestu
-  workflow_dispatch: # Možnost spustit ručně tlačítkem v záložce Actions
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-android-apk:
-    name: Sestavení nativního APK
+    name: Sestavení nativního APK s navýšením verze
     runs-on: ubuntu-latest
 
     steps:
       - name: 1. Stažení zdrojového kódu
         uses: actions/checkout@v4
 
-      - name: 2. Nastavení Node.js
+      - name: 2. Nastavení Node.js (LTS 22)
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: 3. Nastavení Java (JDK 21)
+      - name: 3. Nastavení Java (JDK 21 - Eclipse Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: 4. Automatické přijetí licencí a instalace Android SDK
+      - name: 4. Automatické přijetí licencí a příprava Android SDK
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;35.0.0" || true
         continue-on-error: true
 
-      - name: 5. Instalace závislostí projektu
+      - name: 5. Automatické navýšení verze pro každé sestavení
+        run: |
+          BUILD_NUM=${{ github.run_number }}
+          VERSION_NAME="1.0.${BUILD_NUM}"
+          echo "Sestavuji verzi: $VERSION_NAME (build $BUILD_NUM)"
+          
+          # Aktualizace verze v Android konfiguraci
+          sed -i "s/versionCode [0-9]*/versionCode ${BUILD_NUM}/g" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${VERSION_NAME}\"/g" android/app/build.gradle
+          
+          # Vytvoření souboru version.json pro automatickou detekci v aplikaci
+          cat <<EOF > public/version.json
+          {
+            "version": "${VERSION_NAME}",
+            "build": ${BUILD_NUM},
+            "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          }
+          EOF
+
+      - name: 6. Instalace závislostí projektu
         run: npm install --legacy-peer-deps
 
-      - name: 6. Sestavení webové aplikace (Vite)
+      - name: 7. Sestavení webové aplikace (Vite)
         run: npm run build
 
-      - name: 7. Synchronizace s nativním Android projektem (Capacitor)
+      - name: 8. Synchronizace s nativním Android projektem (Capacitor)
         run: npx cap sync android
 
-      - name: 8. Nastavení spustitelnosti pro Gradle
+      - name: 9. Nastavení spustitelnosti pro Gradle
         run: chmod +x android/gradlew
 
-      - name: 9. Sestavení nativního Android APK balíčku (Gradle)
+      - name: 10. Sestavení nativního Android APK balíčku (Gradle)
         run: |
           cd android
           ./gradlew :app:assembleDebug --no-daemon --stacktrace
 
-      - name: 10. Uložení APK jako stahovatelného artefaktu
+      - name: 11. Přejmenování APK na verzi s číslem sestavení
+        run: |
+          BUILD_NUM=${{ github.run_number }}
+          cp android/app/build/outputs/apk/debug/app-debug.apk "WackyChess-v1.0.${BUILD_NUM}.apk"
+
+      - name: 12. Uložení APK jako stahovatelného artefaktu
         uses: actions/upload-artifact@v4
         with:
-          name: WackyChess-Android-Debug-APK
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: WackyChess-v1.0.${{ github.run_number }}
+          path: WackyChess-v1.0.${{ github.run_number }}.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: 13. Automatické publikování GitHub Release s novým APK
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Wacky Chess Mayhem v1.0.${{ github.run_number }}
+          body: |
+            🎉 Nové automatické sestavení hry **Wacky Chess Mayhem 3D**!
+            
+            - **Verze:** `1.0.${{ github.run_number }}`
+            - **Build:** `${{ github.run_number }}`
+            - **Instalační balíček:** Stáhněte přiložený soubor `.apk` do svého telefonu s Androidem.
+          files: WackyChess-v1.0.${{ github.run_number }}.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

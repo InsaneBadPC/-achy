@@ -96,6 +96,118 @@ class SoundEngine {
     });
   }
 
+  // Real Spoken Voice Synthesis using Web Speech API with Character Personality
+  public speakCharacterVoice(text: string, characterType: string) {
+    if (this.isMuted) return;
+
+    // 1. Play procedural comedic chirp/squeak as accent
+    this.playCharacterVoice(characterType);
+
+    // 2. Real vocal synthesis
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel(); // Stop overlapping speech
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Find Czech or default voice
+        const voices = window.speechSynthesis.getVoices();
+        const csVoice = voices.find((v) => v.lang.startsWith('cs') || v.lang.startsWith('sk'));
+        if (csVoice) {
+          utterance.voice = csVoice;
+          utterance.lang = csVoice.lang;
+        } else {
+          utterance.lang = 'cs-CZ';
+        }
+
+        // Distinct character vocal profiles
+        switch (characterType) {
+          case 'pawn':
+            utterance.pitch = 1.9; // Squeaky cartoon minion
+            utterance.rate = 1.35;
+            break;
+          case 'king':
+            utterance.pitch = 0.55; // Pompous deep booming monarch
+            utterance.rate = 0.85;
+            break;
+          case 'queen':
+            utterance.pitch = 1.3; // Sassy, commanding diva
+            utterance.rate = 1.1;
+            break;
+          case 'knight':
+            utterance.pitch = 1.45; // Energetic bouncy hero
+            utterance.rate = 1.25;
+            break;
+          case 'bishop':
+            utterance.pitch = 0.8; // Mystical, cunning sage
+            utterance.rate = 0.95;
+            break;
+          case 'rook':
+            utterance.pitch = 0.45; // Deep gravelly rock golem
+            utterance.rate = 0.75;
+            break;
+          default:
+            utterance.pitch = 1.2;
+            utterance.rate = 1.1;
+        }
+
+        utterance.volume = 0.9;
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn('Speech synthesis error:', e);
+      }
+    }
+  }
+
+  // Giant cartoon hammer smash sound
+  public playHammerSmash() {
+    this.vibrate([80, 100, 60, 40]);
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.35);
+
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.4);
+  }
+
+  // Sonic speed boost whoosh sound
+  public playSpeedBoost() {
+    this.vibrate([40, 40, 80]);
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, t);
+    osc.frequency.exponentialRampToValueAtTime(1200, t + 0.3);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.35);
+  }
+
   // Comic Character Gibberish Voice Squeak (Simlish / Minion style chirp)
   public playCharacterVoice(characterType: string) {
     if (this.isMuted) return;

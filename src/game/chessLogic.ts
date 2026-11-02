@@ -87,6 +87,24 @@ export function getPseudoLegalMoves(
   const forwardDir = isWhite ? -1 : 1;
 
   const hasRocket = checkSpecialItems && equippedItem === 'rocket_boots';
+  const hasHammer = checkSpecialItems && equippedItem === 'mega_hammer';
+
+  // MEGA HAMMER POWER: Can smash any piece in 1-square radius in all 8 directions!
+  if (hasHammer) {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const hr = row + dr;
+        const hc = col + dc;
+        if (isInsideBoard(hr, hc)) {
+          const target = board[hr][hc];
+          if (!target || target.color !== color) {
+            moves.push({ row: hr, col: hc });
+          }
+        }
+      }
+    }
+  }
 
   // Helper for linear ray moves
   const addRayMoves = (dirs: [number, number][]) => {
@@ -102,7 +120,7 @@ export function getPseudoLegalMoves(
             moves.push({ row: r, col: c });
           }
           if (!hasRocket) {
-            break; // Stop at collision unless rocket boots
+            break; // Stop at collision unless rocket boots let you jump over!
           }
         }
         r += dr;
@@ -117,11 +135,13 @@ export function getPseudoLegalMoves(
       const f1 = row + forwardDir;
       if (isInsideBoard(f1, col) && !board[f1][col]) {
         moves.push({ row: f1, col });
-        // 2-step forward from starting row
+        // 2-step forward from starting row (or anywhere if rocket boots equipped!)
         const startingRow = isWhite ? 6 : 1;
         const f2 = row + forwardDir * 2;
-        if (row === startingRow && isInsideBoard(f2, col) && !board[f2][col]) {
-          moves.push({ row: f2, col });
+        if ((row === startingRow || hasRocket) && isInsideBoard(f2, col) && (!board[f2][col] || hasRocket)) {
+          if (!board[f2][col] || board[f2][col]?.color !== color) {
+            moves.push({ row: f2, col });
+          }
         }
       }
 
@@ -193,7 +213,18 @@ export function getPseudoLegalMoves(
     }
   }
 
-  return moves;
+  // Deduplicate moves
+  const seen = new Set<string>();
+  const uniqueMoves: { row: number; col: number }[] = [];
+  for (const m of moves) {
+    const key = `${m.row},${m.col}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueMoves.push(m);
+    }
+  }
+
+  return uniqueMoves;
 }
 
 // Find position of king
