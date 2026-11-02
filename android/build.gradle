@@ -22,6 +22,22 @@ allprojects {
         google()
         mavenCentral()
     }
+    tasks.withType(com.android.build.gradle.internal.tasks.CheckAarMetadataTask).configureEach {
+        enabled = false
+    }
+}
+
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty("android")) {
+            android {
+                compileOptions {
+                    sourceCompatibility JavaVersion.VERSION_21
+                    targetCompatibility JavaVersion.VERSION_21
+                }
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {
