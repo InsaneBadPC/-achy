@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BoardTheme } from '../types/game';
 import { TRAP_CONFIG, ITEM_CONFIG } from '../game/trapsAndItems';
-import { X, Sliders, BookOpen, Check } from 'lucide-react';
+import { X, Sliders, BookOpen, Check, Smartphone, Copy, Info } from 'lucide-react';
 import { soundEngine } from '../audio/soundEngine';
 
 interface SettingsModalProps {
@@ -30,7 +30,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   bonusItemsEnabled,
   onToggleBonusItems,
 }) => {
-  const [tab, setTab] = React.useState<'settings' | 'guide'>('settings');
+  const [tab, setTab] = useState<'settings' | 'guide' | 'apk'>('settings');
+  const [copiedManifest, setCopiedManifest] = useState(false);
 
   if (!isOpen) return null;
 
@@ -45,12 +46,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     { id: 'spooky_graveyard', name: 'Strašidelný Hřbitov', emoji: '🎃', desc: 'Tajemná fialová mlha a staré kameny' },
   ];
 
+  const manifestJsonString = JSON.stringify(
+    {
+      id: '/',
+      name: 'Wacky Chess Mayhem 3D',
+      short_name: 'WackyChess',
+      description: 'Ztřeštěné 3D šachy s živými komiksovými figurkami, záludnými pastmi, náhodnými bonusy a multiplayerem.',
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      orientation: 'any',
+      background_color: '#090d16',
+      theme_color: '#facc15',
+      categories: ['games', 'entertainment'],
+      lang: 'cs',
+      icons: [
+        {
+          src: '/pwa-192x192.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: '/pwa-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: '/pwa-maskable-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    },
+    null,
+    2
+  );
+
+  const handleCopyManifest = () => {
+    navigator.clipboard.writeText(manifestJsonString);
+    setCopiedManifest(true);
+    soundEngine.playSelect();
+    setTimeout(() => setCopiedManifest(false), 2500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 font-['Fredoka']">
       <div className="relative w-full max-w-lg p-5 sm:p-6 rounded-3xl bg-amber-400 border-4 border-black shadow-[8px_8px_0px_#000] flex flex-col max-h-[90vh] overflow-y-auto text-slate-950">
-        {/* Header */}
+        {/* Header with 3 Tabs */}
         <div className="flex items-center justify-between pb-3 mb-4 border-b-3 border-black">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => {
                 setTab('settings');
@@ -63,7 +110,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span>Nastavení & Světy</span>
+              <span>Světy</span>
             </button>
 
             <button
@@ -78,13 +125,28 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>Pasti & Bonusy</span>
+              <span>Pasti</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setTab('apk');
+                soundEngine.playSelect();
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                tab === 'apk'
+                  ? 'bg-rose-500 text-white shadow-[2px_2px_0px_#ffffff]'
+                  : 'bg-white text-slate-950 border-2 border-black hover:bg-yellow-200'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>Android APK</span>
             </button>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-black text-white hover:bg-slate-800 transition-all cursor-pointer"
+            className="p-1.5 rounded-xl bg-black text-white hover:bg-slate-800 transition-all cursor-pointer ml-1"
           >
             <X className="w-5 h-5" />
           </button>
@@ -229,6 +291,67 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: Android APK & PWABuilder Helper */}
+        {tab === 'apk' && (
+          <div className="flex flex-col gap-3 py-1 text-slate-950">
+            {/* Why error happens banner */}
+            <div className="p-3.5 rounded-2xl bg-white border-3 border-black shadow-[3px_3px_0px_#000]">
+              <div className="flex items-center gap-2 mb-1.5 text-amber-800 font-black text-xs uppercase">
+                <Info className="w-4 h-4 shrink-0 text-amber-600" />
+                <span>Proč PWABuilder hlásí chybu?</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-800 leading-snug">
+                Vývojová adresa na Google Cloud Run je chráněna přihlašovací obrazovkou Google.
+                Externí robot PWABuilderu se zvenčí zastaví na přihlášení a nemůže soubor automaticky stáhnout.
+              </p>
+            </div>
+
+            {/* Method 1: The fastest native install without PWABuilder */}
+            <div className="p-3.5 rounded-2xl bg-emerald-300 border-3 border-black shadow-[3px_3px_0px_#000]">
+              <h4 className="font-black text-xs uppercase mb-1 flex items-center gap-1.5">
+                <span>⚡ 1. Nejrychlejší způsob: Nativní instalace na Android</span>
+              </h4>
+              <p className="text-xs font-semibold text-slate-900 leading-snug mb-2">
+                Otevřete hru na svém mobilu v prohlížeči <strong>Google Chrome</strong> a klepněte na zelené tlačítko <strong>„Instalovat do mobilu“</strong> nahoře na liště (nebo v menu Chrome zvolte <em>„Instalovat aplikaci“</em>).
+              </p>
+              <div className="text-[11px] font-bold bg-white/80 p-2 rounded-xl border border-black/30">
+                ✅ Hra se IHNED nainstaluje jako plnohodnotná aplikace přímo na plochu mobilu bez jakéhokoliv stahování souborů!
+              </div>
+            </div>
+
+            {/* Method 2: PWABuilder Copy Manifest */}
+            <div className="p-3.5 rounded-2xl bg-white border-3 border-black shadow-[3px_3px_0px_#000]">
+              <h4 className="font-black text-xs uppercase mb-1">
+                📦 2. Chcete přímo .APK soubor přes PWABuilder?
+              </h4>
+              <p className="text-xs font-semibold text-slate-800 leading-snug mb-3">
+                Na PWABuilderu klikněte na <strong>„Edit Your Manifest“</strong> a vložte tam níže připravený kód manifestu:
+              </p>
+
+              <button
+                onClick={handleCopyManifest}
+                className="w-full py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 border-2 border-black font-black text-xs uppercase flex items-center justify-center gap-2 shadow-[2px_2px_0px_#000] active:translate-x-0.5 active:translate-y-0.5 transition-all cursor-pointer"
+              >
+                {copiedManifest ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-700" />
+                    <span>Zkopírováno do schránky!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-4 h-4 text-slate-950" />
+                    <span>Kopírovat JSON Manifest pro PWABuilder</span>
+                  </>
+                )}
+              </button>
+
+              <pre className="mt-2.5 p-2 bg-slate-950 text-emerald-400 rounded-xl text-[10px] font-mono overflow-x-auto max-h-32 border border-black">
+                {manifestJsonString}
+              </pre>
             </div>
           </div>
         )}
