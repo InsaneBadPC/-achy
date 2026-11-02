@@ -11,15 +11,15 @@ export type TrapType =
   | 'spring'       // Launches forward 2 squares
   | 'teleport'     // Teleports to a random empty square
   | 'freeze'       // Frozen for next turn
-  | 'swap'         // Swaps positions with a random enemy pawn/piece
-  | 'confetti_pop'; // Dizzy backflip, moral boost
+  | 'swap'         // Swaps positions with a random enemy piece
+  | 'confetti_pop'; // Confetti, grants bubble shield
 
 export type ItemType =
-  | 'rocket_boots'  // Can move any distance jumping over pieces
-  | 'mega_hammer'   // Can bonk any adjacent enemy immediately
+  | 'rocket_boots'  // One rocket flight: up to 3 squares in any direction, jumping over pieces
+  | 'mega_hammer'   // One smash: leap up to 2 squares, stuns adjacent enemies
   | 'bubble_shield' // Protects against next capture
-  | 'magic_mirror'  // Inverts attack
-  | 'speed_potion'; // Grants an immediate extra mini-step
+  | 'magic_mirror'  // Reflects the next attack (attacker is destroyed) and blocks bad traps
+  | 'speed_potion'; // Immediate extra turn
 
 export interface Piece {
   id: string;
@@ -49,6 +49,13 @@ export interface BonusItem {
   type: ItemType;
 }
 
+export type MoveEffect =
+  | 'normal'
+  | 'shield_block'   // Attack bounced off a bubble shield
+  | 'mirror_reflect' // Attacker destroyed by a magic mirror
+  | 'hammer_smash'   // Mega hammer shockwave stunned neighbours
+  | 'rocket_jump';   // Rocket boots flight
+
 export interface Move {
   from: { row: number; col: number };
   to: { row: number; col: number };
@@ -57,6 +64,13 @@ export interface Move {
   trapTriggered?: Trap | null;
   itemCollected?: BonusItem | null;
   trapEffectDescription?: string;
+  effect?: MoveEffect;
+  /** Target square of the original attack (for bump / reflect animations) */
+  attackTarget?: { row: number; col: number };
+  stunnedSquares?: { row: number; col: number }[];
+  extraTurn?: boolean;
+  /** Unique id so identical consecutive moves still trigger animations */
+  seq?: number;
 }
 
 export type GameMode = 'ai' | 'local' | 'multiplayer';
@@ -95,11 +109,12 @@ export interface GameState {
   bonusItems: BonusItem[];
   lastMove: Move | null;
   logMessages: string[];
+  gameId?: number;
 }
 
 export type PeerMessage =
   | { type: 'MOVE'; move: Move; nextTurn: PieceColor; newTraps?: Trap[]; newBonusItems?: BonusItem[] }
-  | { type: 'SYNC_STATE'; state: Partial<GameState> }
+  | { type: 'SYNC_STATE'; state: Partial<GameState>; quote?: { pieceType: PieceType; text: string; speaker: string; avatar: string } }
   | { type: 'EMOTE'; emoji: string; text: string; sender: PieceColor }
   | { type: 'RESTART' }
   | { type: 'READY'; color: PieceColor };

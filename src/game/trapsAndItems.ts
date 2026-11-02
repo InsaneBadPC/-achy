@@ -14,37 +14,37 @@ export const TRAP_CONFIG: Record<
   banana: {
     name: 'Banánová slupka',
     emoji: '🍌',
-    description: 'Figurka uklouzla, udělala otočku o 360° a sjela o políčko dál!',
+    description: 'Figurka uklouzla, udělala otočku o 360° a sjela o políčko dál (pokud tam není král)!',
     color: '#eab308',
   },
   spring: {
     name: 'Pérová odpalovací rampa',
     emoji: '🦘',
-    description: 'BOING! Pružina vystřelila figurku o 2 pole kupředu!',
+    description: 'BOING! Pružina vystřelila figurku o 2 pole kupředu přes překážky!',
     color: '#f97316',
   },
   teleport: {
     name: 'Červí díra',
     emoji: '🌀',
-    description: 'Vznikla časoprostorová anomálie a figurka se teleportovala na náhodné místo!',
+    description: 'Vznikla časoprostorová anomálie a figurka se teleportovala na náhodné prázdné pole!',
     color: '#a855f7',
   },
   freeze: {
     name: 'Mrazivá past',
     emoji: '🧊',
-    description: 'Figurka zmrzla na kost v ledovém bloku! Nemůže se příští tah hýbat.',
+    description: 'Figurka zmrzla na kost v ledovém bloku! Nemůže se v příštím kole hýbat.',
     color: '#38bdf8',
   },
   swap: {
     name: 'Prohození těl',
     emoji: '🔄',
-    description: 'Kouzlo výměny! Figurka si prohodila pozici s náhodným pěšcem!',
+    description: 'Kouzlo výměny! Figurka si okamžitě prohodila pozici s náhodnou figurkou soupeře!',
     color: '#ec4899',
   },
   confetti_pop: {
     name: 'Dělo z konfet',
     emoji: '🎉',
-    description: 'Bum! Z figurky vystřelily konfety a získala ochranný bublinový štít!',
+    description: 'Bum! Z figurky vystřelily oslavné konfety a získala ochranný bublinový štít!',
     color: '#10b981',
   },
 };
@@ -56,31 +56,31 @@ export const ITEM_CONFIG: Record<
   rocket_boots: {
     name: 'Raketové trysky',
     emoji: '🚀',
-    description: 'Může přeskakovat libovolné překážky a nepřátelské figurky!',
+    description: 'Umožní figurce přeletět překážky a skočit až o 3 pole kterýmkoliv směrem!',
     color: '#ef4444',
   },
   mega_hammer: {
     name: 'Obří kreslené kladivo',
     emoji: '🔨',
-    description: 'Masivní útočná síla! Odhazuje figurky v dosahu.',
+    description: 'Drtivý skok do okruhu 2 polí! Při dopadu tlaková vlna omráčí okolní nepřátele.',
     color: '#f59e0b',
   },
   bubble_shield: {
     name: 'Bublinový štít',
     emoji: '🛡️',
-    description: 'Odrazí příští pokus soupeře o vyhození!',
+    description: 'Nafoukne kolem figurky energetickou bublinu, která odrazí příští útok soupeře!',
     color: '#06b6d4',
   },
   magic_mirror: {
     name: 'Kouzelné zrcadlo',
     emoji: '🪞',
-    description: 'Odráží nepříjemné efekty a pasti!',
+    description: 'Chrání před pastmi a pokud na figurku zaútočí soupeř, odrazí útok a vyhodí útočníka!',
     color: '#8b5cf6',
   },
   speed_potion: {
     name: 'Lektvar zrychlení',
     emoji: '⚡',
-    description: 'Okamžitý dvojitý tah!',
+    description: 'Okamžitý příval turbo energie – hráč po tomto tahu hraje hned ještě jednou!',
     color: '#22c55e',
   },
 };
@@ -97,7 +97,6 @@ export function generateInitialTraps(count: number = 6): Trap[] {
     }
   }
 
-  // Shuffle coords
   for (let i = possibleCoords.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [possibleCoords[i], possibleCoords[j]] = [possibleCoords[j], possibleCoords[i]];
@@ -109,20 +108,26 @@ export function generateInitialTraps(count: number = 6): Trap[] {
       row: r,
       col: c,
       type: trapTypes[index % trapTypes.length],
-      revealed: false, // hidden until stepped on for maximum comedy surprise!
+      revealed: false,
     });
   });
 
   return traps;
 }
 
-// Generate random bonus items
+// Generate random bonus items (including all 5 types!)
 export function generateBonusItem(
   board: (Piece | null)[][],
   existingItems: BonusItem[],
   traps: Trap[]
 ): BonusItem | null {
-  const itemTypes: ItemType[] = ['rocket_boots', 'mega_hammer', 'bubble_shield', 'speed_potion'];
+  const itemTypes: ItemType[] = [
+    'rocket_boots',
+    'mega_hammer',
+    'bubble_shield',
+    'magic_mirror',
+    'speed_potion',
+  ];
   const emptyCoords: { r: number; c: number }[] = [];
 
   for (let r = 2; r <= 5; r++) {
@@ -153,6 +158,8 @@ export interface TrapResolutionResult {
   finalRow: number;
   finalCol: number;
   updatedPiece: Piece;
+  swappedTarget?: { piece: Piece; fromRow: number; fromCol: number; toRow: number; toCol: number };
+  bonusCaptured?: Piece | null;
   notification: FloatingNotification | null;
   logText: string;
 }
@@ -168,44 +175,108 @@ export function handleTrapTrigger(
   let finalCol = trap.col;
   const updatedPiece: Piece = { ...piece };
   const info = TRAP_CONFIG[trap.type];
+  let swappedTarget: TrapResolutionResult['swappedTarget'] = undefined;
+  let bonusCaptured: Piece | null = null;
+
+  // Magic mirror blocks negative traps!
+  if (
+    updatedPiece.equippedItem === 'magic_mirror' &&
+    (trap.type === 'banana' || trap.type === 'freeze' || trap.type === 'teleport')
+  ) {
+    soundEngine.playShield();
+    updatedPiece.equippedItem = null; // Consume mirror
+    updatedPiece.shield = true; // Grant shield bonus
+    return {
+      finalRow,
+      finalCol,
+      updatedPiece,
+      notification: {
+        id: `mirror-trap-${Date.now()}`,
+        text: `Kouzelné zrcadlo odrazilo past ${info.name}!`,
+        emoji: '🪞',
+        color: '#8b5cf6',
+      },
+      logText: 'Kouzelné zrcadlo odrazilo past a proměnilo ji ve štít!',
+    };
+  }
+
   let logText = `${piece.color === 'white' ? 'Bílý' : 'Černý'} ${piece.type} šlápl na past: ${info.emoji} ${info.name}!`;
 
   switch (trap.type) {
     case 'banana': {
       soundEngine.playBanana();
       updatedPiece.isDizzy = true;
-      // Slip 1 step in vector direction
-      const slipR = trap.row + (dr !== 0 ? Math.sign(dr) : piece.color === 'white' ? -1 : 1);
-      const slipC = trap.col + (dc !== 0 ? Math.sign(dc) : 0);
-      if (isInsideBoard(slipR, slipC) && !board[slipR][slipC]) {
-        finalRow = slipR;
-        finalCol = slipC;
-        logText += ' Šup! Uklouzl o políčko dál!';
-      } else {
-        logText += ' Zatočila se mu hlava a zavrávoral na místě!';
+      const stepR = dr !== 0 ? Math.sign(dr) : piece.color === 'white' ? -1 : 1;
+      const stepC = dc !== 0 ? Math.sign(dc) : 0;
+      const slipR = trap.row + stepR;
+      const slipC = trap.col + stepC;
+
+      if (isInsideBoard(slipR, slipC)) {
+        const obstacle = board[slipR][slipC];
+        if (!obstacle) {
+          finalRow = slipR;
+          finalCol = slipC;
+          logText += ' Šup! Uklouzl o políčko dál!';
+        } else if (obstacle.color !== piece.color && obstacle.type !== 'king' && !obstacle.shield) {
+          bonusCaptured = obstacle;
+          finalRow = slipR;
+          finalCol = slipC;
+          logText += ' Při uklouznutí srazil soupeřovu figurku jako kuželku!';
+        } else {
+          // Try sideways slip if front is blocked
+          const sideCols = [trap.col - 1, trap.col + 1];
+          const freeCol = sideCols.find((c) => isInsideBoard(trap.row, c) && !board[trap.row][c]);
+          if (freeCol !== undefined) {
+            finalRow = trap.row;
+            finalCol = freeCol;
+            logText += ' Uklouzl bokem na vedlejší pole!';
+          } else {
+            logText += ' Zatočila se mu hlava a udělal piruetu na místě!';
+          }
+        }
       }
       break;
     }
 
     case 'spring': {
       soundEngine.playSpring();
-      const jumpR = trap.row + (dr !== 0 ? Math.sign(dr) * 2 : piece.color === 'white' ? -2 : 2);
-      const jumpC = trap.col + (dc !== 0 ? Math.sign(dc) * 2 : 0);
-      if (isInsideBoard(jumpR, jumpC) && !board[jumpR][jumpC]) {
-        finalRow = jumpR;
-        finalCol = jumpC;
+      const stepR = dr !== 0 ? Math.sign(dr) : piece.color === 'white' ? -1 : 1;
+      const stepC = dc !== 0 ? Math.sign(dc) : 0;
+      // Try 2 squares forward, fallback to 1 square forward
+      const jump2R = trap.row + stepR * 2;
+      const jump2C = trap.col + stepC * 2;
+      const jump1R = trap.row + stepR;
+      const jump1C = trap.col + stepC;
+
+      if (isInsideBoard(jump2R, jump2C) && !board[jump2R][jump2C]) {
+        finalRow = jump2R;
+        finalCol = jump2C;
         logText += ' BOING! Vystřelen o 2 pole dopředu!';
+      } else if (
+        isInsideBoard(jump2R, jump2C) &&
+        board[jump2R][jump2C] &&
+        board[jump2R][jump2C]!.color !== piece.color &&
+        board[jump2R][jump2C]!.type !== 'king' &&
+        !board[jump2R][jump2C]!.shield
+      ) {
+        bonusCaptured = board[jump2R][jump2C];
+        finalRow = jump2R;
+        finalCol = jump2C;
+        logText += ' BOING! Pružina ho vystřelila přímo na soupeře!';
+      } else if (isInsideBoard(jump1R, jump1C) && !board[jump1R][jump1C]) {
+        finalRow = jump1R;
+        finalCol = jump1C;
+        logText += ' BOING! Odrazil se o pole vpřed!';
       } else {
-        logText += ' Vystřelil do vzduchu a dopadl zpět na nohy!';
+        logText += ' Vystřelil vysoko do vzduchu a dopadl zpět!';
       }
       break;
     }
 
     case 'teleport': {
       soundEngine.playTeleport();
-      // Find random empty tile
       const empties: { r: number; c: number }[] = [];
-      for (let r = 0; r < BOARD_SIZE; r++) {
+      for (let r = 1; r < BOARD_SIZE - 1; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
           if (!board[r][c] && (r !== trap.row || c !== trap.col)) {
             empties.push({ r, c });
@@ -216,21 +287,27 @@ export function handleTrapTrigger(
         const target = empties[Math.floor(Math.random() * empties.length)];
         finalRow = target.r;
         finalCol = target.c;
-        logText += ` Teleportoval se do jiné dimenze na pole [${String.fromCharCode(65 + target.c)}${8 - target.r}]!`;
+        logText += ` Teleportoval se červí dírou na pole ${String.fromCharCode(65 + target.c)}${8 - target.r}!`;
       }
       break;
     }
 
     case 'freeze': {
       soundEngine.playFreeze();
-      updatedPiece.frozenTurns = 1;
-      logText += ' Celý ztuhl v ledu a nemůže se hýbat!';
+      if (piece.type === 'king') {
+        // Kings are only chilled (freezing a king could cause an unfair instant mate)
+        updatedPiece.isDizzy = true;
+        logText += ' Král se otřásl zimou, ale královský plášť ho zahřál!';
+      } else {
+        // Frozen for the owner's next turn (decremented at the end of that turn)
+        updatedPiece.frozenTurns = 1;
+        logText += ' Celý zamrzl v kostce ledu a příští tah vynechává!';
+      }
       break;
     }
 
     case 'swap': {
       soundEngine.playTeleport();
-      // Look for any enemy pawn or piece to swap with
       const candidates: { r: number; c: number; piece: Piece }[] = [];
       for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
@@ -242,18 +319,22 @@ export function handleTrapTrigger(
       }
       if (candidates.length > 0) {
         const swapTarget = candidates[Math.floor(Math.random() * candidates.length)];
-        // Perform swap
-        board[swapTarget.r][swapTarget.c] = {
-          ...piece,
-          row: swapTarget.r,
-          col: swapTarget.c,
-        };
         finalRow = swapTarget.r;
         finalCol = swapTarget.c;
-        swapTarget.piece.row = trap.row;
-        swapTarget.piece.col = trap.col;
-        board[trap.row][trap.col] = swapTarget.piece;
-        logText += ` Prohodil si tělo s nepřátelským ${swapTarget.piece.type}!`;
+        const enemyCopy: Piece = {
+          ...swapTarget.piece,
+          row: trap.row,
+          col: trap.col,
+        };
+        board[trap.row][trap.col] = enemyCopy;
+        swappedTarget = {
+          piece: enemyCopy,
+          fromRow: swapTarget.r,
+          fromCol: swapTarget.c,
+          toRow: trap.row,
+          toCol: trap.col,
+        };
+        logText += ` Vyměnil si pozici s nepřátelským ${swapTarget.piece.type}!`;
       }
       break;
     }
@@ -266,9 +347,10 @@ export function handleTrapTrigger(
     }
   }
 
+  const effectText = logText.substring(logText.indexOf(info.name) + info.name.length + 1).trim();
   const notification: FloatingNotification = {
     id: `notif-${Date.now()}-${Math.random()}`,
-    text: info.name,
+    text: `${info.name}! ${effectText || info.description}`,
     emoji: info.emoji,
     color: info.color,
   };
@@ -277,6 +359,8 @@ export function handleTrapTrigger(
     finalRow,
     finalCol,
     updatedPiece,
+    swappedTarget,
+    bonusCaptured,
     notification,
     logText,
   };

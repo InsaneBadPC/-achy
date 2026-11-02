@@ -22,6 +22,7 @@ import {
   evaluateGameStatus,
   selectAIMove,
   cloneBoard,
+  isInsideBoard,
 } from './game/chessLogic';
 import {
   generateInitialTraps,
@@ -31,13 +32,16 @@ import {
 } from './game/trapsAndItems';
 import { getRandomQuote, CharacterQuote } from './game/characterQuotes';
 import { soundEngine } from './audio/soundEngine';
+import { voiceEngine } from './audio/voiceEngine';
 import { peerMultiplayer } from './network/peerMultiplayer';
+import { checkForGitHubUpdate, AppReleaseInfo } from './services/updateService';
 import { ChessScene } from './three/ChessScene';
 import { TitleScreen } from './components/TitleScreen';
 import { GameHUD } from './components/GameHUD';
 import { GameOverModal } from './components/GameOverModal';
 import { MultiplayerModal } from './components/MultiplayerModal';
 import { SettingsModal } from './components/SettingsModal';
+import { UpdateModal } from './components/UpdateModal';
 
 interface BoardHistoryEntry {
   board: (Piece | null)[][];
@@ -50,7 +54,7 @@ interface BoardHistoryEntry {
 }
 
 export default function App() {
-  // Screen state: 'title' | 'playing'
+  // Screen state
   const [screen, setScreen] = useState<'title' | 'playing'>('title');
 
   // Game configuration
@@ -85,40 +89,68 @@ export default function App() {
   const [myColor, setMyColor] = useState<PieceColor>('white');
   const [isMultiplayerConnected, setIsMultiplayerConnected] = useState<boolean>(false);
 
+  // Cameras & Visuals
   const [activeCameraView, setActiveCameraView] = useState<'iso' | 'white' | 'black' | 'top'>('iso');
   const [isFlyInActive, setIsFlyInActive] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<FloatingNotification[]>([]);
   const [currentQuote, setCurrentQuote] = useState<CharacterQuote | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(soundEngine.getMuted());
   const [isMusicOn, setIsMusicOn] = useState<boolean>(soundEngine.isMusicOn());
+  const [isVoiceOn, setIsVoiceOn] = useState<boolean>(voiceEngine.isEnabled());
 
-  // Modals
+  // Updates & Modals
+  const [releaseInfo, setReleaseInfo] = useState<AppReleaseInfo | null>(null);
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState<boolean>(false);
 
-  // History for undo
+  // Refs
   const historyRef = useRef<BoardHistoryEntry[]>([]);
   const quoteTimerRef = useRef<number | null>(null);
+  const isAiThinkingRef = useRef<boolean>(false);
+  const moveSeqRef = useRef<number>(0);
 
-  // Show a comic character quote with voice squeak
-  const triggerCharacterQuote = useCallback((quote: CharacterQuote, type: string) => {
-    soundEngine.playCharacterVoice(type);
+  // Check for GitHub updates on load and periodically
+  const runUpdateCheck = useCallback(async (manual = false) => {
+    setIsCheckingUpdate(true);
+    try {
+      const info = await checkForGitHubUpdate();
+      setReleaseInfo(info);
+      if (manual || info.hasUpdate) {
+        setIsUpdateModalOpen(true);
+      }
+    } finally {
+      setIsCheckingUpdate(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    runUpdateCheck(false);
+    // Check every 10 minutes in background
+    const interval = setInterval(() => runUpdateCheck(false), 10 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [runUpdateCheck]);
+
+  // Show a character quote with Czech voice synthesis
+  const triggerCharacterQuote = useCallback((quote: CharacterQuote, force = true) => {
+    soundEngine.speakCharacterVoice(quote.text, quote.pieceType || 'pawn', force);
     setCurrentQuote(quote);
     if (quoteTimerRef.current) clearTimeout(quoteTimerRef.current);
     quoteTimerRef.current = window.setTimeout(() => {
       setCurrentQuote(null);
-    }, 3800);
+    }, 4000);
   }, []);
 
-  // Spawn floating notifications helper
+  // Floating notifications
   const addNotification = useCallback((notif: FloatingNotification) => {
     setNotifications((prev) => [...prev, notif]);
     setTimeout(() => {
       setNotifications((prev) => prev.filter((n) => n.id !== notif.id));
-    }, 2800);
+    }, notif.duration || 2800);
   }, []);
 
-  // Initialize a new match
+  // Start new match
   const startNewGame = useCallback(
     (mode: GameMode, diff: AIDifficulty, th: BoardTheme) => {
       const initialBoard = createInitialBoard();
@@ -142,6 +174,7 @@ export default function App() {
       setIsStalemate(false);
       setWinner(null);
       setIsAiThinking(false);
+      isAiThinkingRef.current = false;
       setGameMode(mode);
       setAiDifficulty(diff);
       setTheme(th);
@@ -151,6 +184,7 @@ export default function App() {
 
       setScreen('playing');
       soundEngine.playSelect();
+      soundEngine.playFlyIn();
     },
     [trapCount, bonusItemsEnabled]
   );
@@ -185,63 +219,197 @@ export default function App() {
       let trapTriggered: Trap | null = null;
       let itemCollected: BonusItem | null = null;
       let trapDesc = '';
+      let moveEffect: Move['effect'] = 'normal';
+      let extraTurnGranted = false;
+      let attackTarget = { ...to };
+      const stunnedSquares: { row: number; col: number }[] = [];
 
-      // Check bubble shield protection
-      if (capturedPiece && capturedPiece.shield) {
-        soundEngine.playShield();
-        capturedPiece.shield = false;
-        addNotification({
-          id: `shield-${Date.now()}`,
-          text: 'Bublinový štít odrazil útok!',
-          emoji: '🛡️',
-          color: '#38bdf8',
-        });
-        capturedPiece = null;
+      const usedItem = movingPiece.equippedItem;
+
+      // 1. Attack Target Defense Checks (Magic Mirror & Bubble Shield)
+      if (capturedPiece) {
+        if (capturedPiece.equippedItem === 'magic_mirror') {
+          // MAGIC MIRROR: Reflects the attack! Attacker is destroyed, defender survives
+          soundEngine.playMirror();
+          capturedPiece.equippedItem = null; // Mirror consumed
+          moveEffect = 'mirror_reflect';
+
+          // Attacker is captured
+          if (movingPiece.color === 'white') {
+            setCapturedWhite((prev) => [...prev, movingPiece]);
+          } else {
+            setCapturedBlack((prev) => [...prev, movingPiece]);
+          }
+          newBoard[from.row][from.col] = null; // Attacker disappears
+
+          addNotification({
+            id: `mirror-${Date.now()}`,
+            text: 'Kouzelné zrcadlo odrazilo útok a zničilo útočníka!',
+            emoji: '🪞',
+            color: '#8b5cf6',
+          });
+
+          const mirrorQuote = getRandomQuote(capturedPiece.type, 'mirror_reflect');
+          triggerCharacterQuote(mirrorQuote, true);
+
+          // Turn ends without moving piece to destination
+          const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
+          const status = evaluateGameStatus(newBoard, nextTurn);
+          setIsCheck(status.isCheck);
+          setIsCheckmate(status.isCheckmate);
+          setIsStalemate(status.isStalemate);
+          if (status.isCheckmate) setWinner(currentTurn === 'white' ? 'black' : 'white');
+
+          moveSeqRef.current++;
+          const moveObj: Move = {
+            from,
+            to: from,
+            piece: movingPiece,
+            captured: movingPiece,
+            effect: 'mirror_reflect',
+            attackTarget: to,
+            seq: moveSeqRef.current,
+          };
+
+          setBoard(newBoard);
+          setCurrentTurn(nextTurn);
+          setTurnNumber((prev) => prev + 1);
+          setSelectedSquare(null);
+          setLegalMoves([]);
+          setLastMove(moveObj);
+
+          if (gameMode === 'multiplayer' && !isRemote) {
+            peerMultiplayer.sendMessage({ type: 'MOVE', move: moveObj, nextTurn });
+          }
+          return;
+        }
+
+        if (capturedPiece.shield) {
+          // BUBBLE SHIELD: Pops and deflects the attack, moving piece stays or bumps
+          soundEngine.playShield();
+          capturedPiece.shield = false; // Shield popped
+          moveEffect = 'shield_block';
+
+          addNotification({
+            id: `shield-${Date.now()}`,
+            text: 'Bublinový štít odrazil útok!',
+            emoji: '🛡️',
+            color: '#38bdf8',
+          });
+
+          const shieldQuote = getRandomQuote(capturedPiece.type, 'shield_block');
+          triggerCharacterQuote(shieldQuote, true);
+
+          // Moving piece remains on origin square (deflected)
+          const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
+          const status = evaluateGameStatus(newBoard, nextTurn);
+          setIsCheck(status.isCheck);
+          setIsCheckmate(status.isCheckmate);
+          setIsStalemate(status.isStalemate);
+
+          moveSeqRef.current++;
+          const moveObj: Move = {
+            from,
+            to: from,
+            piece: movingPiece,
+            captured: null,
+            effect: 'shield_block',
+            attackTarget: to,
+            seq: moveSeqRef.current,
+          };
+
+          setBoard(newBoard);
+          setCurrentTurn(nextTurn);
+          setTurnNumber((prev) => prev + 1);
+          setSelectedSquare(null);
+          setLegalMoves([]);
+          setLastMove(moveObj);
+
+          if (gameMode === 'multiplayer' && !isRemote) {
+            peerMultiplayer.sendMessage({ type: 'MOVE', move: moveObj, nextTurn });
+          }
+          return;
+        }
       }
 
-      // Handle standard capture
+      // Handle normal capture
       if (capturedPiece) {
         if (capturedPiece.color === 'white') {
           setCapturedWhite((prev) => [...prev, capturedPiece!]);
         } else {
           setCapturedBlack((prev) => [...prev, capturedPiece!]);
         }
-        // Trigger funny capture quote!
         const capQuote = getRandomQuote(movingPiece.type, 'capture');
-        triggerCharacterQuote(capQuote, movingPiece.type);
+        triggerCharacterQuote(capQuote, true);
       } else {
-        // Normal move quote (60% chance to speak on move so it feels lively!)
-        if (Math.random() < 0.6) {
+        if (Math.random() < 0.65) {
           const moveQuote = getRandomQuote(movingPiece.type, 'move');
-          triggerCharacterQuote(moveQuote, movingPiece.type);
+          triggerCharacterQuote(moveQuote, false);
         }
       }
 
-      // Place piece at destination
+      // 2. Consume one-time items on move
+      if (usedItem === 'mega_hammer') {
+        moveEffect = 'hammer_smash';
+        soundEngine.playHammerSmash();
+
+        // Stun adjacent enemies in 1-square radius
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            if (dr === 0 && dc === 0) continue;
+            const nr = to.row + dr;
+            const nc = to.col + dc;
+            if (isInsideBoard(nr, nc)) {
+              const enemy = newBoard[nr][nc];
+              if (enemy && enemy.color !== movingPiece.color && enemy.type !== 'king') {
+                enemy.isDizzy = true;
+                enemy.frozenTurns = 1;
+                stunnedSquares.push({ row: nr, col: nc });
+              }
+            }
+          }
+        }
+
+        addNotification({
+          id: `hammer-${Date.now()}`,
+          text: 'Mega Kladivo! Tlaková vlna omráčila okolní nepřátele!',
+          emoji: '🔨',
+          color: '#f59e0b',
+        });
+      } else if (usedItem === 'rocket_boots') {
+        moveEffect = 'rocket_jump';
+        soundEngine.playRocket();
+        addNotification({
+          id: `rocket-${Date.now()}`,
+          text: 'Raketový skok úspěšně dokončen!',
+          emoji: '🚀',
+          color: '#ef4444',
+        });
+      }
+
       newBoard[from.row][from.col] = null;
       const pieceCopy: Piece = {
         ...movingPiece,
         row: to.row,
         col: to.col,
         hasMoved: true,
+        equippedItem: null, // Consume equipped active weapon
       };
       newBoard[to.row][to.col] = pieceCopy;
 
       let finalRow = to.row;
       let finalCol = to.col;
 
-      // 1. Trap Check
+      // 3. Trap Check
       const activeTrapIdx = traps.findIndex((t) => t.row === to.row && t.col === to.col);
       if (activeTrapIdx !== -1) {
         const trap = traps[activeTrapIdx];
         trapTriggered = trap;
 
-        // Reveal trap permanently
         const updatedTraps = [...traps];
         updatedTraps[activeTrapIdx] = { ...trap, revealed: true };
         setTraps(updatedTraps);
 
-        // Calculate trap physics/movement effect
         const dr = to.row - from.row;
         const dc = to.col - from.col;
         const resolution = handleTrapTrigger(newBoard, pieceCopy, trap, dr, dc);
@@ -255,31 +423,40 @@ export default function App() {
           finalCol = resolution.finalCol;
         }
 
+        if (resolution.bonusCaptured) {
+          if (resolution.bonusCaptured.color === 'white') {
+            setCapturedWhite((prev) => [...prev, resolution.bonusCaptured!]);
+          } else {
+            setCapturedBlack((prev) => [...prev, resolution.bonusCaptured!]);
+          }
+        }
+
         trapDesc = resolution.logText;
         if (resolution.notification) {
           addNotification(resolution.notification);
         }
 
-        // Trigger funny trap voice quote!
         const trapQuote = getRandomQuote(pieceCopy.type, 'trap', { trapType: trap.type });
-        triggerCharacterQuote(trapQuote, pieceCopy.type);
-
-        if (trap.type === 'banana' || trap.type === 'freeze') {
-          soundEngine.playSadTrombone();
-        }
+        triggerCharacterQuote(trapQuote, true);
       }
 
-      // 2. Bonus Item Check
+      // 4. Bonus Item Check
       const activeItemIdx = bonusItems.findIndex((it) => it.row === finalRow && it.col === finalCol);
       if (activeItemIdx !== -1) {
         const item = bonusItems[activeItemIdx];
         itemCollected = item;
-        soundEngine.playVictory();
+        soundEngine.playItemPickup();
+
+        const currentP = newBoard[finalRow][finalCol]!;
 
         if (item.type === 'bubble_shield') {
-          newBoard[finalRow][finalCol]!.shield = true;
+          currentP.shield = true;
+        } else if (item.type === 'speed_potion') {
+          // SPEED POTION: Grants an immediate extra turn!
+          soundEngine.playSpeedBoost();
+          extraTurnGranted = true;
         } else {
-          newBoard[finalRow][finalCol]!.equippedItem = item.type;
+          currentP.equippedItem = item.type;
         }
 
         setBonusItems((prev) => prev.filter((_, i) => i !== activeItemIdx));
@@ -291,11 +468,11 @@ export default function App() {
           color: info.color,
         });
 
-        const itemQuote = getRandomQuote(pieceCopy.type, 'item', { itemType: item.type });
-        triggerCharacterQuote(itemQuote, pieceCopy.type);
+        const itemQuote = getRandomQuote(currentP.type, 'item', { itemType: item.type });
+        triggerCharacterQuote(itemQuote, true);
       }
 
-      // 3. Pawn Promotion Check
+      // 5. Pawn Promotion Check
       if (pieceCopy.type === 'pawn') {
         const promoRow = pieceCopy.color === 'white' ? 0 : 7;
         if (finalRow === promoRow) {
@@ -307,27 +484,20 @@ export default function App() {
             emoji: '👑',
             color: '#facc15',
           });
-          triggerCharacterQuote(
-            {
-              speaker: 'Nová Královna',
-              avatar: '👸',
-              text: 'Kdo se směje naposled, ten je královna!',
-              comicTag: 'BAM!',
-            },
-            'queen'
-          );
+          const promoQuote = getRandomQuote('queen', 'promotion');
+          triggerCharacterQuote(promoQuote, true);
         }
       }
 
-      // 4. Random Bonus Item Spawn Chance
-      if (bonusItemsEnabled && Math.random() < 0.25 && bonusItems.length < 3) {
+      // 6. Spawn Bonus Items
+      if (bonusItemsEnabled && Math.random() < 0.28 && bonusItems.length < 3) {
         const newItem = generateBonusItem(newBoard, bonusItems, traps);
         if (newItem) {
           setBonusItems((prev) => [...prev, newItem]);
         }
       }
 
-      // Reduce frozen turns
+      // Decrement frozen turns for pieces of current player
       for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
           const p = newBoard[r][c];
@@ -342,9 +512,13 @@ export default function App() {
         }
       }
 
-      const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
+      // 7. Next Turn Calculation (considering Speed Potion extra turn)
+      const nextTurn: PieceColor = extraTurnGranted
+        ? currentTurn
+        : currentTurn === 'white'
+        ? 'black'
+        : 'white';
 
-      // 5. Check & Checkmate Evaluation
       const status = evaluateGameStatus(newBoard, nextTurn);
       setIsCheck(status.isCheck);
       setIsCheckmate(status.isCheckmate);
@@ -359,7 +533,7 @@ export default function App() {
           color: '#ef4444',
         });
         const kingQuote = getRandomQuote('king', 'check');
-        triggerCharacterQuote(kingQuote, 'king');
+        triggerCharacterQuote(kingQuote, true);
       }
 
       if (status.isCheckmate) {
@@ -368,6 +542,7 @@ export default function App() {
         setWinner('draw');
       }
 
+      moveSeqRef.current++;
       const moveObj: Move = {
         from,
         to: { row: finalRow, col: finalCol },
@@ -376,6 +551,11 @@ export default function App() {
         trapTriggered,
         itemCollected,
         trapEffectDescription: trapDesc,
+        effect: moveEffect,
+        attackTarget,
+        stunnedSquares,
+        extraTurn: extraTurnGranted,
+        seq: moveSeqRef.current,
       };
 
       setBoard(newBoard);
@@ -385,7 +565,6 @@ export default function App() {
       setLegalMoves([]);
       setLastMove(moveObj);
 
-      // Multiplayer Broadcast
       if (gameMode === 'multiplayer' && !isRemote) {
         peerMultiplayer.sendMessage({
           type: 'MOVE',
@@ -407,28 +586,38 @@ export default function App() {
     ]
   );
 
-  // AI Turn Trigger
+  // AI Turn Trigger (Fixed: does not self-cancel and properly checks state)
   useEffect(() => {
     if (
       screen === 'playing' &&
       gameMode === 'ai' &&
       currentTurn === 'black' &&
       !winner &&
-      !isAiThinking
+      !isAiThinkingRef.current
     ) {
+      isAiThinkingRef.current = true;
       setIsAiThinking(true);
-      const timer = setTimeout(() => {
-        const aiMove = selectAIMove(board, 'black', traps, bonusItems, aiDifficulty);
-        if (aiMove) {
-          executeMove(
-            { row: aiMove.piece.row, col: aiMove.piece.col },
-            aiMove.move
-          );
+
+      const timer = window.setTimeout(() => {
+        try {
+          const aiMove = selectAIMove(board, 'black', traps, bonusItems, aiDifficulty);
+          if (aiMove) {
+            executeMove(
+              { row: aiMove.piece.row, col: aiMove.piece.col },
+              aiMove.move
+            );
+          }
+        } finally {
+          isAiThinkingRef.current = false;
+          setIsAiThinking(false);
         }
-        setIsAiThinking(false);
       }, 700);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        isAiThinkingRef.current = false;
+        setIsAiThinking(false);
+      };
     }
   }, [
     screen,
@@ -439,7 +628,6 @@ export default function App() {
     traps,
     bonusItems,
     aiDifficulty,
-    isAiThinking,
     executeMove,
   ]);
 
@@ -479,12 +667,29 @@ export default function App() {
         const moves = getLegalMoves(board, piece);
         setLegalMoves(moves);
         soundEngine.playSelect();
+
+        // 35% chance to speak on piece selection
+        if (Math.random() < 0.35) {
+          const selectQuote = getRandomQuote(piece.type, 'select');
+          triggerCharacterQuote(selectQuote, false);
+        }
       }
     },
-    [winner, isAiThinking, gameMode, currentTurn, myColor, selectedSquare, legalMoves, board, executeMove]
+    [
+      winner,
+      isAiThinking,
+      gameMode,
+      currentTurn,
+      myColor,
+      selectedSquare,
+      legalMoves,
+      board,
+      executeMove,
+      triggerCharacterQuote,
+    ]
   );
 
-  // Undo Move handler
+  // Undo Move
   const handleUndoMove = useCallback(() => {
     if (historyRef.current.length === 0 || gameMode === 'multiplayer') return;
 
@@ -511,11 +716,13 @@ export default function App() {
       setWinner(null);
       setIsCheck(false);
       setIsCheckmate(false);
+      setIsAiThinking(false);
+      isAiThinkingRef.current = false;
       soundEngine.playSelect();
     }
   }, [gameMode, currentTurn]);
 
-  // Emote sender
+  // Emotes
   const handleSendEmote = useCallback(
     (emoji: string, text: string) => {
       addNotification({
@@ -537,7 +744,7 @@ export default function App() {
     [addNotification, gameMode, myColor]
   );
 
-  // Multiplayer PeerJS callbacks
+  // Multiplayer PeerJS Handlers
   const handleHostRoom = useCallback(async () => {
     return peerMultiplayer.init({
       onConnected: () => {
@@ -651,10 +858,10 @@ export default function App() {
       {/* Cinematic Fly-In Intro Banner */}
       {isFlyInActive && screen === 'playing' && (
         <div className="fixed inset-0 z-40 pointer-events-none flex flex-col items-center justify-center animate-in zoom-in-75 fade-in duration-300">
-          <div className="rotate-[-3deg] bg-amber-400 text-slate-950 font-['Bangers'] text-4xl sm:text-6xl tracking-wider px-8 py-3 rounded-3xl border-4 border-black shadow-[8px_8px_0px_#000]">
+          <div className="rotate-[-2deg] bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-['Bangers'] text-4xl sm:text-6xl tracking-wider px-8 py-3.5 rounded-3xl border-3 border-black shadow-[0_15px_40px_rgba(245,158,11,0.5)]">
             ⚔️ BITVA ZAČÍNÁ! ⚔️
           </div>
-          <span className="text-white font-black text-xs sm:text-sm uppercase bg-black/80 px-4 py-1.5 rounded-full mt-3 border-2 border-white/50 animate-pulse">
+          <span className="text-white font-bold text-xs sm:text-sm uppercase bg-black/80 px-4 py-1.5 rounded-full mt-3 border border-white/20 animate-pulse">
             Přílet na šachovnici... (Klepnutím přeskočíte)
           </span>
         </div>
@@ -666,6 +873,8 @@ export default function App() {
           onStartGame={startNewGame}
           onOpenMultiplayer={() => setIsMultiplayerOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenUpdates={() => setIsUpdateModalOpen(true)}
+          hasUpdateAvailable={releaseInfo?.hasUpdate}
         />
       )}
 
@@ -683,6 +892,7 @@ export default function App() {
           activeCameraView={activeCameraView}
           isMuted={isMuted}
           isMusicOn={isMusicOn}
+          isVoiceOn={isVoiceOn}
           isAiThinking={isAiThinking}
           myColor={myColor}
           onCameraChange={(view) => setActiveCameraView(view)}
@@ -696,6 +906,11 @@ export default function App() {
             const next = soundEngine.toggleMusic();
             setIsMusicOn(next);
           }}
+          onToggleVoice={() => {
+            const next = !isVoiceOn;
+            setIsVoiceOn(next);
+            voiceEngine.setEnabled(next);
+          }}
           onSendEmote={handleSendEmote}
           onReturnToTitle={() => {
             soundEngine.playSelect();
@@ -703,6 +918,15 @@ export default function App() {
           }}
           onRestartGame={() => startNewGame(gameMode, aiDifficulty, theme)}
           onDismissQuote={() => setCurrentQuote(null)}
+          onChangeGameMode={(newMode) => {
+            if (newMode === 'multiplayer') {
+              setIsMultiplayerOpen(true);
+            } else {
+              startNewGame(newMode, aiDifficulty, theme);
+            }
+          }}
+          onOpenUpdates={() => setIsUpdateModalOpen(true)}
+          hasUpdateAvailable={releaseInfo?.hasUpdate}
         />
       )}
 
@@ -726,7 +950,7 @@ export default function App() {
         onJoinRoom={handleJoinRoom}
       />
 
-      {/* Settings & Rules Guide Modal */}
+      {/* Settings Modal */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -736,6 +960,15 @@ export default function App() {
         onChangeTrapCount={setTrapCount}
         bonusItemsEnabled={bonusItemsEnabled}
         onToggleBonusItems={() => setBonusItemsEnabled(!bonusItemsEnabled)}
+      />
+
+      {/* GitHub Update Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        releaseInfo={releaseInfo}
+        isChecking={isCheckingUpdate}
+        onCheckAgain={() => runUpdateCheck(true)}
       />
     </div>
   );

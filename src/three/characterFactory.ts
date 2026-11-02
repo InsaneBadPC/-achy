@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { PieceColor, PieceType } from '../types/game';
 import { createEyeTexture } from './proceduralTextures';
 
-// Shared materials cache to save draw calls and memory
+// Shared eye textures
 const eyeTextureHappy = createEyeTexture('happy');
 const eyeTextureDizzy = createEyeTexture('dizzy');
 const eyeTextureSurprised = createEyeTexture('surprised');
@@ -31,24 +31,24 @@ export function createCharacterModel(
 
   const isWhite = color === 'white';
 
-  // Palette definitions with distinct roughness/metalness differences
+  // Palette definitions
   const bodyColor = isWhite ? 0xf8fafc : 0x1e293b;
   const accentColor = isWhite ? 0x38bdf8 : 0xec4899;
   const goldColor = 0xf59e0b;
-  const skinColor = isWhite ? 0xfde047 : 0xa78bfa; // cute goblin yellow vs whimsical alien purple
+  const skinColor = isWhite ? 0xfde047 : 0xa78bfa;
   const metalColor = isWhite ? 0xe2e8f0 : 0x475569;
 
-  // Materials with PBR properties
+  // Modern PBR materials
   const bodyMat = new THREE.MeshStandardMaterial({
     color: bodyColor,
-    roughness: 0.35,
-    metalness: 0.1,
+    roughness: 0.3,
+    metalness: 0.15,
   });
 
   const accentMat = new THREE.MeshStandardMaterial({
     color: accentColor,
     roughness: 0.25,
-    metalness: 0.3,
+    metalness: 0.25,
   });
 
   const goldMat = new THREE.MeshStandardMaterial({
@@ -83,20 +83,18 @@ export function createCharacterModel(
     spacing: number = 0.15
   ) => {
     const eyeGeom = new THREE.SphereGeometry(radius, 16, 16);
-    // Left eye
-    const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
+    const leftEye = new THREE.Mesh(eyeGeom, eyeMat.clone());
     leftEye.position.set(-spacing, y, z);
     leftEye.name = 'eyeLeft';
     parent.add(leftEye);
 
-    // Right eye
-    const rightEye = new THREE.Mesh(eyeGeom, eyeMat);
+    const rightEye = new THREE.Mesh(eyeGeom, eyeMat.clone());
     rightEye.position.set(spacing, y, z);
     rightEye.name = 'eyeRight';
     parent.add(rightEye);
   };
 
-  // Helper base pedestal for all pieces so they sit flush
+  // Base pedestal
   const baseGeom = new THREE.CylinderGeometry(0.36, 0.42, 0.12, 24);
   const baseMesh = new THREE.Mesh(baseGeom, metalMat);
   baseMesh.position.y = 0.06;
@@ -123,7 +121,6 @@ export function createCharacterModel(
   switch (type) {
     case 'pawn': {
       // --- PAWN: Cute Goblin / Minion ---
-      // 1. Plump round belly
       const bellyGeom = new THREE.SphereGeometry(0.32, 20, 20);
       const belly = new THREE.Mesh(bellyGeom, bodyMat);
       belly.position.y = 0.28;
@@ -131,7 +128,6 @@ export function createCharacterModel(
       belly.castShadow = true;
       torsoGroup.add(belly);
 
-      // 2. Cute belt with golden buckle
       const beltGeom = new THREE.CylinderGeometry(0.33, 0.33, 0.06, 20);
       const belt = new THREE.Mesh(beltGeom, accentMat);
       belt.position.y = 0.24;
@@ -142,14 +138,12 @@ export function createCharacterModel(
       buckle.position.set(0, 0.24, 0.33);
       torsoGroup.add(buckle);
 
-      // 3. Head
       headGroup.position.y = 0.58;
       const headGeom = new THREE.SphereGeometry(0.28, 20, 20);
       const head = new THREE.Mesh(headGeom, skinMat);
       head.castShadow = true;
       headGroup.add(head);
 
-      // 4. Viking / Gnome Helmet
       const helmetGeom = new THREE.ConeGeometry(0.29, 0.35, 16);
       const helmet = new THREE.Mesh(helmetGeom, metalMat);
       helmet.position.y = 0.18;
@@ -161,10 +155,8 @@ export function createCharacterModel(
       pompom.position.y = 0.36;
       headGroup.add(pompom);
 
-      // 5. Eyes
       addGooglyEyes(headGroup, 0.04, 0.22, 0.1, 0.12);
 
-      // 6. Cute tiny wooden club
       const clubGroup = new THREE.Group();
       clubGroup.name = 'weapon';
       const clubHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.35, 10), accentMat);
@@ -182,19 +174,16 @@ export function createCharacterModel(
 
     case 'knight': {
       // --- KNIGHT: Bouncy Unicorn / Steed ---
-      // 1. Spring coil base
       const springGeom = new THREE.CylinderGeometry(0.24, 0.28, 0.3, 16);
       const spring = new THREE.Mesh(springGeom, accentMat);
       spring.position.y = 0.22;
       torsoGroup.add(spring);
 
-      // 2. Saddle
       const saddleGeom = new THREE.CylinderGeometry(0.26, 0.24, 0.1, 16);
       const saddle = new THREE.Mesh(saddleGeom, bodyMat);
       saddle.position.y = 0.38;
       torsoGroup.add(saddle);
 
-      // 3. Horse Head & Neck
       headGroup.position.set(0, 0.55, 0);
       const neckGeom = new THREE.CylinderGeometry(0.18, 0.22, 0.35, 16);
       const neck = new THREE.Mesh(neckGeom, bodyMat);
@@ -202,7 +191,6 @@ export function createCharacterModel(
       neck.position.set(0, 0.1, -0.05);
       headGroup.add(neck);
 
-      // Snout
       const snoutGeom = new THREE.BoxGeometry(0.26, 0.25, 0.42);
       const snout = new THREE.Mesh(snoutGeom, skinMat);
       snout.position.set(0, 0.25, 0.18);
@@ -210,7 +198,6 @@ export function createCharacterModel(
       snout.castShadow = true;
       headGroup.add(snout);
 
-      // Nostrils
       const nostrilGeom = new THREE.SphereGeometry(0.03, 8, 8);
       const nMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
       const n1 = new THREE.Mesh(nostrilGeom, nMat);
@@ -220,7 +207,6 @@ export function createCharacterModel(
       headGroup.add(n1);
       headGroup.add(n2);
 
-      // Floppy Ears
       const earGeom = new THREE.ConeGeometry(0.08, 0.22, 10);
       const leftEar = new THREE.Mesh(earGeom, accentMat);
       leftEar.position.set(-0.16, 0.46, -0.05);
@@ -231,50 +217,42 @@ export function createCharacterModel(
       headGroup.add(leftEar);
       headGroup.add(rightEar);
 
-      // Golden Spiral Unicorn Horn
       const hornGeom = new THREE.ConeGeometry(0.06, 0.32, 12);
       const horn = new THREE.Mesh(hornGeom, goldMat);
       horn.position.set(0, 0.45, 0.18);
       horn.rotation.x = 0.3;
       headGroup.add(horn);
 
-      // Eyes on side of head
       addGooglyEyes(headGroup, 0.32, 0.15, 0.09, 0.15);
-
       torsoGroup.add(headGroup);
       break;
     }
 
     case 'bishop': {
       // --- BISHOP: Whimsical Wizard / Jester ---
-      // 1. Flowing Cone Robe
       const robeGeom = new THREE.ConeGeometry(0.35, 0.75, 20);
       const robe = new THREE.Mesh(robeGeom, bodyMat);
       robe.position.y = 0.42;
       robe.castShadow = true;
       torsoGroup.add(robe);
 
-      // Sash / Cloak trim
       const trimGeom = new THREE.TorusGeometry(0.28, 0.03, 10, 20);
       const trim = new THREE.Mesh(trimGeom, goldMat);
       trim.rotation.x = Math.PI / 2;
       trim.position.y = 0.25;
       torsoGroup.add(trim);
 
-      // 2. Wizard Head
       headGroup.position.y = 0.82;
       const headGeom = new THREE.SphereGeometry(0.22, 16, 16);
       const head = new THREE.Mesh(headGeom, skinMat);
       headGroup.add(head);
 
-      // 3. Curly White Beard
       const beardGeom = new THREE.ConeGeometry(0.18, 0.35, 12);
       const beard = new THREE.Mesh(beardGeom, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 }));
       beard.position.set(0, -0.12, 0.14);
       beard.rotation.x = 0.2;
       headGroup.add(beard);
 
-      // 4. Pointy Wizard Hat
       const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.04, 20), accentMat);
       hatBrim.position.y = 0.12;
       headGroup.add(hatBrim);
@@ -284,12 +262,10 @@ export function createCharacterModel(
       hatTop.rotation.x = -0.2;
       headGroup.add(hatTop);
 
-      // Golden star on tip of hat
       const star = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 10), goldMat);
       star.position.set(0, 0.6, -0.1);
       headGroup.add(star);
 
-      // 5. Wizard Staff with Glowing Gem
       const staffGroup = new THREE.Group();
       staffGroup.name = 'weapon';
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.9, 10), goldMat);
@@ -307,7 +283,6 @@ export function createCharacterModel(
 
     case 'rook': {
       // --- ROOK: Living Castle Golem ---
-      // 1. Chunky square stone body
       const stoneMat = new THREE.MeshStandardMaterial({
         color: isWhite ? 0x94a3b8 : 0x334155,
         roughness: 0.8,
@@ -320,18 +295,15 @@ export function createCharacterModel(
       body.castShadow = true;
       torsoGroup.add(body);
 
-      // Belt trim
       const belt = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.08, 0.58), goldMat);
       belt.position.y = 0.22;
       torsoGroup.add(belt);
 
-      // 2. Castle crenellations / battlements crown
       headGroup.position.y = 0.72;
       const rimGeom = new THREE.BoxGeometry(0.62, 0.1, 0.62);
       const rim = new THREE.Mesh(rimGeom, stoneMat);
       headGroup.add(rim);
 
-      // 4 corner towers
       const towerGeom = new THREE.BoxGeometry(0.16, 0.18, 0.16);
       const corners = [
         [-0.23, -0.23],
@@ -345,7 +317,6 @@ export function createCharacterModel(
         headGroup.add(tower);
       });
 
-      // 3. Chunky boulder fists
       const fistGeom = new THREE.SphereGeometry(0.16, 12, 12);
       const leftFist = new THREE.Mesh(fistGeom, stoneMat);
       leftFist.position.set(-0.38, 0.3, 0.1);
@@ -357,34 +328,28 @@ export function createCharacterModel(
       rightFist.name = 'armRight';
       torsoGroup.add(rightFist);
 
-      // Eyes embedded in chest/head
       addGooglyEyes(headGroup, -0.15, 0.29, 0.11, 0.15);
-
       torsoGroup.add(headGroup);
       break;
     }
 
     case 'queen': {
       // --- QUEEN: Sassy Royal Diva ---
-      // 1. Flared royal gown
       const dressGeom = new THREE.CylinderGeometry(0.2, 0.38, 0.75, 20);
       const dress = new THREE.Mesh(dressGeom, bodyMat);
       dress.position.y = 0.44;
       dress.castShadow = true;
       torsoGroup.add(dress);
 
-      // Gown corset
       const corset = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 0.25, 20), accentMat);
       corset.position.y = 0.62;
       torsoGroup.add(corset);
 
-      // 2. Royal Head
       headGroup.position.y = 0.92;
       const headGeom = new THREE.SphereGeometry(0.22, 16, 16);
       const head = new THREE.Mesh(headGeom, skinMat);
       headGroup.add(head);
 
-      // 3. Elegant Tiara with Ruby Gem
       const tiaraBase = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.08, 16), goldMat);
       tiaraBase.position.y = 0.15;
       headGroup.add(tiaraBase);
@@ -396,7 +361,6 @@ export function createCharacterModel(
       jewel.position.set(0, 0.24, 0.16);
       headGroup.add(jewel);
 
-      // 4. Royal Scepter / Magic Wand
       const scepterGroup = new THREE.Group();
       scepterGroup.name = 'weapon';
       const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.6, 10), goldMat);
@@ -415,7 +379,6 @@ export function createCharacterModel(
 
     case 'king': {
       // --- KING: Chubby Silly Monarch ---
-      // 1. Plump belly with velvet ermine robe
       const bellyGeom = new THREE.SphereGeometry(0.38, 20, 20);
       const belly = new THREE.Mesh(bellyGeom, bodyMat);
       belly.position.y = 0.44;
@@ -423,7 +386,6 @@ export function createCharacterModel(
       belly.castShadow = true;
       torsoGroup.add(belly);
 
-      // Ermine white fur trim with black spots
       const collarGeom = new THREE.TorusGeometry(0.3, 0.08, 12, 20);
       const collar = new THREE.Mesh(
         collarGeom,
@@ -433,13 +395,11 @@ export function createCharacterModel(
       collar.position.y = 0.72;
       torsoGroup.add(collar);
 
-      // 2. King Head
       headGroup.position.y = 0.94;
       const headGeom = new THREE.SphereGeometry(0.24, 16, 16);
       const head = new THREE.Mesh(headGeom, skinMat);
       headGroup.add(head);
 
-      // 3. Giant Glorious Mustache
       const mustacheGroup = new THREE.Group();
       mustacheGroup.name = 'mustache';
       const stacheMat = new THREE.MeshStandardMaterial({
@@ -459,12 +419,10 @@ export function createCharacterModel(
       mustacheGroup.add(m2);
       headGroup.add(mustacheGroup);
 
-      // 4. Massive Golden Crown with Jewels
       const crownBase = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.26, 0.14, 16), goldMat);
       crownBase.position.y = 0.18;
       headGroup.add(crownBase);
 
-      // Spikes on crown
       for (let i = 0; i < 5; i++) {
         const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 8), goldMat);
         const ang = (i / 5) * Math.PI * 2;
@@ -472,7 +430,6 @@ export function createCharacterModel(
         headGroup.add(spike);
       }
 
-      // Royal ruby cross on top
       const cross = new THREE.Mesh(
         new THREE.BoxGeometry(0.06, 0.15, 0.04),
         new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.1, metalness: 0.8 })
@@ -480,7 +437,6 @@ export function createCharacterModel(
       cross.position.y = 0.4;
       headGroup.add(cross);
 
-      // 5. Royal Golden Scepter
       const scepterGroup = new THREE.Group();
       scepterGroup.name = 'weapon';
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.65, 10), goldMat);
@@ -497,15 +453,16 @@ export function createCharacterModel(
     }
   }
 
-  // Bubble shield mesh (hidden until active)
+  // Bubble shield mesh (with iridescent shimmer)
   const shieldGeom = new THREE.SphereGeometry(0.58, 20, 20);
   const shieldMat = new THREE.MeshPhysicalMaterial({
     color: 0x38bdf8,
     transparent: true,
-    opacity: 0.45,
-    roughness: 0.1,
-    transmission: 0.85,
-    ior: 1.3,
+    opacity: 0.55,
+    roughness: 0.05,
+    metalness: 0.1,
+    transmission: 0.9,
+    ior: 1.35,
   });
   const shieldMesh = new THREE.Mesh(shieldGeom, shieldMat);
   shieldMesh.name = 'bubbleShield';
@@ -513,14 +470,14 @@ export function createCharacterModel(
   shieldMesh.visible = false;
   root.add(shieldMesh);
 
-  // Ice block mesh (hidden until frozen)
+  // Ice block mesh
   const iceGeom = new THREE.BoxGeometry(0.85, 1.15, 0.85);
   const iceMat = new THREE.MeshPhysicalMaterial({
     color: 0xa5f3fc,
     transparent: true,
-    opacity: 0.6,
-    roughness: 0.2,
-    transmission: 0.7,
+    opacity: 0.65,
+    roughness: 0.15,
+    transmission: 0.75,
   });
   const iceMesh = new THREE.Mesh(iceGeom, iceMat);
   iceMesh.name = 'iceBlock';
@@ -528,7 +485,7 @@ export function createCharacterModel(
   iceMesh.visible = false;
   root.add(iceMesh);
 
-  // Mega Hammer 3D attachment (hidden until equipped)
+  // Mega Hammer 3D attachment
   const hammerGroup = new THREE.Group();
   hammerGroup.name = 'itemHammer';
   const hammerHandle = new THREE.Mesh(
@@ -547,7 +504,7 @@ export function createCharacterModel(
   hammerGroup.visible = false;
   root.add(hammerGroup);
 
-  // Rocket Boots 3D attachment (hidden until equipped)
+  // Rocket Boots 3D attachment
   const rocketsGroup = new THREE.Group();
   rocketsGroup.name = 'itemRockets';
   const rocketMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.4, roughness: 0.3 });
@@ -563,7 +520,39 @@ export function createCharacterModel(
   rocketsGroup.visible = false;
   root.add(rocketsGroup);
 
-  // Face rotation: White faces forward (-Z direction, towards row 0), Black faces backward (+Z direction, towards row 7)
+  // Magic Mirror 3D attachment (floating glowing mirror on side)
+  const mirrorGroup = new THREE.Group();
+  mirrorGroup.name = 'itemMirror';
+  const mirrorFrame = new THREE.Mesh(
+    new THREE.TorusGeometry(0.16, 0.03, 12, 24),
+    goldMat
+  );
+  const mirrorGlass = new THREE.Mesh(
+    new THREE.CircleGeometry(0.15, 24),
+    new THREE.MeshStandardMaterial({ color: 0xa855f7, metalness: 0.95, roughness: 0.05 })
+  );
+  mirrorGroup.add(mirrorFrame);
+  mirrorGroup.add(mirrorGlass);
+  mirrorGroup.position.set(-0.35, 0.55, 0.1);
+  mirrorGroup.rotation.y = Math.PI / 4;
+  mirrorGroup.visible = false;
+  root.add(mirrorGroup);
+
+  // Stun / Dizzy Stars halo
+  const starsGroup = new THREE.Group();
+  starsGroup.name = 'dizzyStars';
+  const starGeom = new THREE.OctahedronGeometry(0.06);
+  const starMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+  for (let i = 0; i < 3; i++) {
+    const sm = new THREE.Mesh(starGeom, starMat);
+    const ang = (i / 3) * Math.PI * 2;
+    sm.position.set(Math.cos(ang) * 0.28, 1.25, Math.sin(ang) * 0.28);
+    starsGroup.add(sm);
+  }
+  starsGroup.visible = false;
+  root.add(starsGroup);
+
+  // Face rotation
   root.rotation.y = isWhite ? 0 : Math.PI;
 
   return root;
@@ -571,7 +560,7 @@ export function createCharacterModel(
 
 export function updateCharacterState(
   model: THREE.Group,
-  piece: { frozenTurns?: number; shield?: boolean; isDizzy?: boolean; equippedItem?: string }
+  piece: { frozenTurns?: number; shield?: boolean; isDizzy?: boolean; equippedItem?: string | null }
 ) {
   const shield = model.getObjectByName('bubbleShield');
   if (shield) {
@@ -591,6 +580,16 @@ export function updateCharacterState(
   const rockets = model.getObjectByName('itemRockets');
   if (rockets) {
     rockets.visible = piece.equippedItem === 'rocket_boots';
+  }
+
+  const mirror = model.getObjectByName('itemMirror');
+  if (mirror) {
+    mirror.visible = piece.equippedItem === 'magic_mirror';
+  }
+
+  const dizzyStars = model.getObjectByName('dizzyStars');
+  if (dizzyStars) {
+    dizzyStars.visible = !!piece.isDizzy;
   }
 
   const eyeLeft = model.getObjectByName('eyeLeft') as THREE.Mesh;

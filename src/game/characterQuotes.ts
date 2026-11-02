@@ -3,190 +3,297 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { PieceType, TrapType, ItemType } from '../types/game';
+import { PieceType, TrapType, ItemType, PieceColor } from '../types/game';
 
 export interface CharacterQuote {
   speaker: string;
   avatar: string;
   text: string;
+  pieceType?: PieceType;
+  color?: PieceColor;
   soundCue?: string;
-  comicTag?: 'BAM!' | 'POW!' | 'WHAM!' | 'OOPS!' | 'ZAP!' | 'BOING!' | 'K.O.!';
+  comicTag?: 'BAM!' | 'POW!' | 'WHAM!' | 'OOPS!' | 'ZAP!' | 'BOING!' | 'K.O.!' | 'CRACK!' | 'WOW!' | 'BRR!';
 }
 
-const KING_MOVE_QUOTES = [
-  'Kliďte se z cesty, Jeho Výsost kráčí!',
-  'Moje koruna je těžká, ale moje ego ještě těžší!',
-  'Kde mám své pečené kuře?!',
-  'Jeden krok pro krále, obří skok pro království!',
-  'Dneska jsem obzvlášť majestátní, že ano?',
-];
+export type QuoteEvent =
+  | 'move'
+  | 'capture'
+  | 'captured'
+  | 'check'
+  | 'trap'
+  | 'item'
+  | 'select'
+  | 'promotion'
+  | 'shield_block'
+  | 'mirror_reflect'
+  | 'hammer_smash'
+  | 'rocket_jump'
+  | 'extra_turn'
+  | 'frozen'
+  | 'victory'
+  | 'defeat';
 
-const KING_CHECK_QUOTES = [
+type Pool = Record<PieceType, string[]>;
+
+const MOVE: Pool = {
+  king: [
+    'Kliďte se z cesty, Jeho Výsost kráčí!',
+    'Moje koruna je těžká, ale moje ego ještě těžší.',
+    'Kde mám své pečené kuře?!',
+    'Jeden krok pro krále, obří skok pro království!',
+    'Pomalu, opatrně… králové neběhají.',
+    'Tohle je královská procházka, žádný úprk!',
+    'Kdo mi zase schoval žezlo?',
+  ],
+  queen: [
+    'Uvolněte molo, přichází královna!',
+    'Můj styl je smrtící a boty drahé.',
+    'Dívej se a uč se, broučku.',
+    'Diagonála, rovinka… mně je to jedno, zlato.',
+    'Jdu tam, kam se mi zachce. Jsem přece dáma!',
+    'Ten účes mi drží líp než tvoje obrana.',
+  ],
+  knight: [
+    'Íhahá! Parkour mistr je na scéně!',
+    'Skáču do písmene L, protože jsem Legenda!',
+    'Kopyta namazaná, letííím!',
+    'Kdo potřebuje rovné cesty, když má pružiny?',
+    'Hop sem, hop tam, nikdo mě nechytí!',
+    'Pozor, koník bez brzd!',
+  ],
+  bishop: [
+    'Abraka-dabra, šikmo napravo!',
+    'Hvězdy praví, že diagonála je dnes bezpečná.',
+    'Můj plnovous má vlastní gravitační pole.',
+    'Čaruji, kouzlím… a šup tam!',
+    'Rovně chodí jen amatéři.',
+    'Hokus pokus, nový fokus!',
+  ],
+  rook: [
+    'DUDUDUM! Těžká váha v pohybu!',
+    'Uhněte, nebo vás zašlápnu do dlažby!',
+    'Kamení má absolutní přednost v jízdě.',
+    'Jsem pevnost na kolečkách, brácho!',
+    'Rovně a bez zatáček, tak to mám rád.',
+    'Pozor, tady se drtí dlažba!',
+  ],
+  pawn: [
+    'Táp-táp-táp, už běžím, šéfe!',
+    'Jednou ze mě bude královna, uvidíte!',
+    'Jsem malej, ale hrozně zákeřnej!',
+    'Krok za krokem k věčné slávě!',
+    'Hlavně nešlápnout na banán…',
+    'Kupředu, levá, kupředu, pravá!',
+    'Já jsem jen pěšák, já nic nevím!',
+  ],
+};
+
+const SELECT: Pool = {
+  king: ['Ano? Král poslouchá.', 'Doufám, že je to důležité!', 'Kam mě to zase táhneš?'],
+  queen: ['Konečně si mě někdo všiml!', 'Mluv rychle, zlato.', 'Jsem připravená zářit!'],
+  knight: ['Íhahá, kam to bude?', 'Konečně akce!', 'Kopyta už se mi třesou!'],
+  bishop: ['Hvězdy mě volají…', 'Ano, můj pane?', 'Mám v rukávu pár kouzel.'],
+  rook: ['HRRM. Golem připraven.', 'Kdo mě budí?', 'Drtič čeká na rozkaz.'],
+  pawn: ['Já?! Opravdu já?', 'Hlásím se do služby!', 'Ano, šéfe! Hned, šéfe!'],
+};
+
+const CAPTURE: Pool = {
+  king: ['Ani král se nebojí ušpinit rukavice!', 'Za vlast a za kuře!', 'Královská facka!'],
+  queen: [
+    'Promiň zlato, tenhle outfit ti vůbec neslušel!',
+    'BUM! Jsi vyškrtnutý ze seznamu hostů!',
+    'Moc pomalý! Příště si vezmi tenisky!',
+    'Šach-šmach, a jsi pryč.',
+  ],
+  knight: ['Kopytem do zadku, letíš!', 'Íhahá, strike!', 'Překvapení zezadu!'],
+  bishop: ['Puf! Zmizel jsi jako králík z klobouku!', 'Kouzlo vyhazovací, první stupeň!', 'Abrakadabra, jsi pryč!'],
+  rook: ['DRTIČ 3000 v akci! K.O.!', 'Placička hotová!', 'BUM! A je z tebe palačinka!'],
+  pawn: ['Malej, ale šikovnej!', 'Ha! Pěšák tě dostal!', 'Tohle si dej do životopisu!'],
+};
+
+const CAPTURED: Pool = {
+  king: ['To je velezrada!'],
+  queen: ['Moje vlasy! Moje šaty!', 'To si ještě vyřídíme!', 'Tohle nebylo fér, zlato!'],
+  knight: ['Íhaaaaa… letím do stáje!', 'Moje kopyta!'],
+  bishop: ['Tohle jsem v křišťálové kouli neviděl!', 'Moje kouzla selhala!'],
+  rook: ['Rozpadám se na kamínky!', 'Zavolejte zedníka!'],
+  pawn: ['Áááá! Mamíííí!', 'Já jsem věděl, že to tak dopadne!', 'Aspoň jsem to zkusil!'],
+};
+
+const CHECK = [
   'POMÓC! Velezrada! Kde jsou moje stráže?!',
   'Né na obličej, jsem přece král!',
-  'Rychle, přiveďte mi ochutnavače!',
+  'Rychle, přiveďte mi ochutnávače!',
   'Kdo vám dovolil na mě takhle útočit?!',
+  'Šach?! To si dělá legraci!',
+  'Stráže! STRÁŽE!',
 ];
 
-const QUEEN_MOVE_QUOTES = [
-  'Cesta pro královnu dramatu!',
-  'Můj styl je smrtící a boty drahé!',
-  'Dívej se a uč se, brouku!',
-  'Šachovnice je moje módní molo!',
-];
-
-const QUEEN_CAPTURE_QUOTES = [
-  'Promiň zlato, tenhle outfit ti vůbec neslušel!',
-  'BUM! Jsi vyškrtnut ze seznamu hostů!',
-  'Moc pomalý! Příště si vezmi tenisky!',
-];
-
-const KNIGHT_MOVE_QUOTES = [
-  'Iháhá! Parkour mistr na scéně!',
-  'Skáču do písmene L, protože jsem Legenda!',
-  'Kopyta namazána, letííím!',
-  'Kdo potřebuje rovný cesty, když má pružiny?!',
-];
-
-const BISHOP_MOVE_QUOTES = [
-  'Abraka-dabra a jsi bez figury!',
-  'Hvězdy říkaly, že diagonála je dnes bezpečná!',
-  'Můj plnovous má vlastní gravitační pole!',
-  'Čaruji, kouzlím... a šup tam!',
-];
-
-const ROOK_MOVE_QUOTES = [
-  'DUDUDUM! Těžká váha v pohybu!',
-  'Uhněte, nebo vás zašlápnu do dlažby!',
-  'Kamení má absolutní přednost v jízdě!',
-  'Jsem pevnost na kolečkách, brácho!',
-];
-
-const ROOK_CAPTURE_QUOTES = [
-  'DRTIČ 3000 v akci! K.O.!',
-  'Placička hotová!',
-  'BUM! A je z tebe palačinka!',
-];
-
-const PAWN_MOVE_QUOTES = [
-  'Táp-táp-táp, už běžím, šéfe!',
-  'Jednou ze mě bude královna, uvidíte!',
-  'Jsem malej, ale hrozně zákeřnej!',
-  'Krok za krokem k věčné slávě!',
+const PROMOTION = [
+  'Kdo se směje naposled, ten je královna!',
+  'Říkal jsem to! Já jsem to říkal!',
+  'Mami, podívej, mám korunu!',
+  'Z pěšáka až na trůn, to je kariéra!',
 ];
 
 const TRAP_QUOTES: Record<TrapType, string[]> = {
   banana: [
-    'Jééé, skluzavkaaa! Pomóóóc!',
+    'Jééé, klouzačkaaa! Pomóóóc!',
     'Kdo nechal tu slupku na mém koberci?!',
-    '360 stupňová pirueta zdarma!',
+    'Pirueta za tři sta šedesát stupňů zdarma!',
     'Moje záda! To bolí!',
   ],
-  spring: [
-    'BOINGGG! Letím do oblak!',
-    'Gravitace je dneska nějaká rozbitá!',
-    'Houston, máme skákací problém!',
-  ],
+  spring: ['BOINGGG! Letím do oblak!', 'Gravitace je dneska nějaká rozbitá!', 'Houstone, máme skákací problém!'],
   teleport: [
     'Časoprostorový zmatek! Kde to sakra jsem?!',
     'Moje oblíbená zkratka druhou dimenzí!',
-    'Tady jsem nechtěl! Chci reklamaci!',
+    'Tady jsem nechtěl být! Chci reklamaci!',
   ],
-  freeze: [
-    'Brrr! Kdo tady zapomněl zavřít mrazák?!',
-    'Jsem rampouch! Ani hnout!',
-    'Potřebuju horkej čaj, okamžitě!',
-  ],
-  swap: [
-    'Cože?! V cizím těle a na cizím poli?!',
-    'Kouzlo zmatku! Čau na druhé straně!',
-  ],
-  confetti_pop: [
-    'Oslavná rána! Jsem nezničitelný!',
-    'Párty začíná! Dejte mi štít!',
-  ],
+  freeze: ['Brrr! Kdo tady nechal otevřenej mrazák?!', 'Jsem rampouch! Ani hnout!', 'Potřebuju horkej čaj, okamžitě!'],
+  swap: ['Cože?! Na cizím poli?!', 'Kouzlo zmatku! Čau na druhé straně!', 'Kde to jsem? A kdo jsi ty?!'],
+  confetti_pop: ['Párty! Jsem nezničitelný!', 'Konfety a štít? To je den!', 'Oslavná rána!'],
 };
 
 const ITEM_QUOTES: Record<ItemType, string[]> = {
-  rocket_boots: [
-    'Raketový pohon zažehnut! Přelétám všechny!',
-    'Rychle a zběsile na šachovnici!',
-  ],
-  mega_hammer: [
-    'S tímhle obřím kladivem nikdo neprojde!',
-    'Čas na velkej kreslenej BONK!',
-  ],
-  bubble_shield: [
-    'Bublina aktivována! Ani škrábanec!',
-    'Bouncy bouncy štít pro mé bezpečí!',
-  ],
-  magic_mirror: [
-    'Kdo je na šachovnici nejkrásnější? Já!',
-  ],
-  speed_potion: [
-    'Turbo energie! Dvojitý tah!',
-  ],
+  rocket_boots: ['Raketové trysky nahozeny! Přeletím všechny!', 'Rychle a zběsile na šachovnici!', 'Tři, dva, jedna… start!'],
+  mega_hammer: ['S tímhle obřím kladivem nikdo neprojde!', 'Čas na velkej kreslenej BONK!', 'Kladivo v ruce, problém na obzoru!'],
+  bubble_shield: ['Bublina aktivována! Ani škrábanec!', 'Jsem v bublině a je mi tu dobře!', 'Zkus to, jestli si troufneš!'],
+  magic_mirror: ['Zrcadlo, zrcadlo… kdo je tu nejkrásnější? Já!', 'Kdo na mě zaútočí, ten uvidí!', 'Odrazím všechno!'],
+  speed_potion: ['Turbo energie! Hraju znovu!', 'Glo-glo-glo… JDEME NA TO!', 'Cítím se rychlejší než blesk!'],
 };
+
+const EFFECT_QUOTES: Record<'shield_block' | 'mirror_reflect' | 'hammer_smash' | 'rocket_jump' | 'extra_turn' | 'frozen', string[]> = {
+  shield_block: ['Ha! Odrazil ses od mé bubliny!', 'Bublina drží! Zkus to znovu!', 'Boing! Tudy ne, kamaráde!'],
+  mirror_reflect: ['Zrcadlo vrátilo úder! Sbohem!', 'Útok se ti vymstil!', 'Podívej se do zrcadla… a zmiz!'],
+  hammer_smash: ['BONK! Všichni kolem mají hvězdičky!', 'Kladivo mluví za mě!', 'Zemětřesení v přímém přenosu!'],
+  rocket_jump: ['Přeletěl jsem vás všechny!', 'Šššššš… přistání!', 'Vzdušná linka má zpoždění nula minut!'],
+  extra_turn: ['Ještě jednou! Ještě jednou!', 'Lektvar zabral, jedeme dál!', 'Jsem tak rychlý, že hraju dvakrát!'],
+  frozen: ['Nemůžu se hnout… brrr.', 'Ještě chvilku, jsem zmrzlý!', 'Rozmrazte mě někdo!'],
+};
+
+const SPEAKER_NAMES: Record<PieceType, string> = {
+  king: 'Král Bručoun',
+  queen: 'Královna Diva',
+  knight: 'Koník Skokan',
+  bishop: 'Mág Vousáč',
+  rook: 'Golem Drtič',
+  pawn: 'Pěšák Pepík',
+};
+
+const SPEAKER_AVATARS: Record<PieceType, string> = {
+  king: '🤴',
+  queen: '👸',
+  knight: '🦄',
+  bishop: '🧙‍♂️',
+  rook: '🗿',
+  pawn: '💂',
+};
+
+const lastByPool = new Map<string[], string>();
+
+function pick(pool: string[]): string {
+  if (pool.length === 0) return 'Hmm!';
+  if (pool.length === 1) return pool[0];
+  const last = lastByPool.get(pool);
+  let choice = pool[Math.floor(Math.random() * pool.length)];
+  let guard = 0;
+  while (choice === last && guard++ < 5) {
+    choice = pool[Math.floor(Math.random() * pool.length)];
+  }
+  lastByPool.set(pool, choice);
+  return choice;
+}
+
+export function getSpeakerName(type: PieceType): string {
+  return SPEAKER_NAMES[type];
+}
 
 export function getRandomQuote(
   type: PieceType,
-  event: 'move' | 'capture' | 'captured' | 'check' | 'trap' | 'item',
-  extraInfo?: { trapType?: TrapType; itemType?: ItemType }
+  event: QuoteEvent,
+  extraInfo?: { trapType?: TrapType; itemType?: ItemType; color?: PieceColor }
 ): CharacterQuote {
-  const speakerNames: Record<PieceType, string> = {
-    king: 'Král Všeználek',
-    queen: 'Královna Divoká',
-    knight: 'Oř Skokan',
-    bishop: 'Mág Vousáč',
-    rook: 'Golem Drtič',
-    pawn: 'Skřet Minion',
-  };
-
-  const speakerAvatars: Record<PieceType, string> = {
-    king: '👑',
-    queen: '👸',
-    knight: '🦄',
-    bishop: '🧙‍♂️',
-    rook: '🗿',
-    pawn: '👺',
-  };
-
   let pool: string[] = [];
   let tag: CharacterQuote['comicTag'] = 'POW!';
+  let speakerType: PieceType = type;
 
-  if (event === 'check' && type === 'king') {
-    pool = KING_CHECK_QUOTES;
-    tag = 'OOPS!';
-  } else if (event === 'trap' && extraInfo?.trapType) {
-    pool = TRAP_QUOTES[extraInfo.trapType] || ['Ajajaj!'];
-    tag = extraInfo.trapType === 'banana' ? 'OOPS!' : extraInfo.trapType === 'spring' ? 'BOING!' : 'ZAP!';
-  } else if (event === 'item' && extraInfo?.itemType) {
-    pool = ITEM_QUOTES[extraInfo.itemType] || ['Bonus je můj!'];
-    tag = 'BAM!';
-  } else if (event === 'capture') {
-    if (type === 'queen') pool = QUEEN_CAPTURE_QUOTES;
-    else if (type === 'rook') pool = ROOK_CAPTURE_QUOTES;
-    else pool = ['BUM! A máš to spočítané!', 'K.O.! Přímý zásah!'];
-    tag = 'WHAM!';
-  } else {
-    // Normal move
-    switch (type) {
-      case 'king': pool = KING_MOVE_QUOTES; break;
-      case 'queen': pool = QUEEN_MOVE_QUOTES; break;
-      case 'knight': pool = KNIGHT_MOVE_QUOTES; break;
-      case 'bishop': pool = BISHOP_MOVE_QUOTES; break;
-      case 'rook': pool = ROOK_MOVE_QUOTES; break;
-      case 'pawn': pool = PAWN_MOVE_QUOTES; break;
-    }
-    tag = 'POW!';
+  switch (event) {
+    case 'check':
+      speakerType = 'king';
+      pool = CHECK;
+      tag = 'OOPS!';
+      break;
+    case 'trap':
+      pool = (extraInfo?.trapType && TRAP_QUOTES[extraInfo.trapType]) || ['Ajajaj!'];
+      tag =
+        extraInfo?.trapType === 'banana'
+          ? 'OOPS!'
+          : extraInfo?.trapType === 'spring'
+          ? 'BOING!'
+          : extraInfo?.trapType === 'freeze'
+          ? 'BRR!'
+          : 'ZAP!';
+      break;
+    case 'item':
+      pool = (extraInfo?.itemType && ITEM_QUOTES[extraInfo.itemType]) || ['Bonus je můj!'];
+      tag = 'WOW!';
+      break;
+    case 'capture':
+      pool = CAPTURE[type];
+      tag = Math.random() < 0.5 ? 'WHAM!' : 'K.O.!';
+      break;
+    case 'captured':
+      pool = CAPTURED[type];
+      tag = 'OOPS!';
+      break;
+    case 'select':
+      pool = SELECT[type];
+      tag = undefined;
+      break;
+    case 'promotion':
+      speakerType = 'queen';
+      pool = PROMOTION;
+      tag = 'BAM!';
+      break;
+    case 'shield_block':
+    case 'mirror_reflect':
+    case 'hammer_smash':
+    case 'rocket_jump':
+    case 'extra_turn':
+    case 'frozen':
+      pool = EFFECT_QUOTES[event];
+      tag =
+        event === 'hammer_smash'
+          ? 'CRACK!'
+          : event === 'mirror_reflect'
+          ? 'ZAP!'
+          : event === 'shield_block'
+          ? 'BOING!'
+          : event === 'frozen'
+          ? 'BRR!'
+          : 'WOW!';
+      break;
+    case 'victory':
+      speakerType = 'king';
+      pool = ['Vítězství! Dnes se hoduje!', 'Sláva! Královské kuře pro všechny!', 'Já jsem to věděl od začátku!'];
+      tag = 'BAM!';
+      break;
+    case 'defeat':
+      speakerType = 'king';
+      pool = ['Ne… to není možné…', 'Prohráli jsme… přineste mi kapesník.', 'Příště! Příště určitě!'];
+      tag = 'OOPS!';
+      break;
+    default:
+      pool = MOVE[type];
+      tag = 'POW!';
   }
 
-  const text = pool[Math.floor(Math.random() * pool.length)];
-
   return {
-    speaker: speakerNames[type],
-    avatar: speakerAvatars[type],
-    text,
+    speaker: SPEAKER_NAMES[speakerType],
+    avatar: SPEAKER_AVATARS[speakerType],
+    pieceType: speakerType,
+    color: extraInfo?.color,
+    text: pick(pool),
     comicTag: tag,
   };
 }

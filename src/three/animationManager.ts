@@ -9,7 +9,7 @@ import { soundEngine } from '../audio/soundEngine';
 
 export interface ActiveAnimation {
   id: string;
-  type: 'hop' | 'slip' | 'spring' | 'teleport' | 'knockback' | 'celebrate';
+  type: 'hop' | 'slip' | 'spring' | 'teleport' | 'knockback' | 'hammer_smash' | 'rocket_jump' | 'bump';
   targetGroup: THREE.Group;
   startX: number;
   startZ: number;
@@ -42,14 +42,14 @@ export class AnimationManager {
     group: THREE.Group,
     targetRow: number,
     targetCol: number,
-    duration: number = 0.38,
+    duration: number = 0.35,
     onComplete?: () => void
   ) {
     const target = squareToWorld(targetRow, targetCol);
     soundEngine.playStep();
 
     this.activeAnimations.push({
-      id: `hop-${group.name}-${Date.now()}`,
+      id: `hop-${group.name}-${Date.now()}-${Math.random()}`,
       type: 'hop',
       targetGroup: group,
       startX: group.position.x,
@@ -71,19 +71,19 @@ export class AnimationManager {
     onComplete?: () => void
   ) {
     const target = squareToWorld(finalRow, finalCol);
-    this.triggerCameraShake(0.15, 0.25);
+    this.triggerCameraShake(0.18, 0.3);
 
     this.activeAnimations.push({
-      id: `slip-${group.name}-${Date.now()}`,
+      id: `slip-${group.name}-${Date.now()}-${Math.random()}`,
       type: 'slip',
       targetGroup: group,
       startX: group.position.x,
       startZ: group.position.z,
       targetX: target.x,
       targetZ: target.z,
-      duration: 0.6,
+      duration: 0.65,
       elapsed: 0,
-      rotations: Math.PI * 4, // 2 full spins!
+      rotations: Math.PI * 4, // 2 full spins
       onComplete,
     });
   }
@@ -96,19 +96,19 @@ export class AnimationManager {
     onComplete?: () => void
   ) {
     const target = squareToWorld(finalRow, finalCol);
-    this.triggerCameraShake(0.2, 0.3);
+    this.triggerCameraShake(0.22, 0.35);
 
     this.activeAnimations.push({
-      id: `spring-${group.name}-${Date.now()}`,
+      id: `spring-${group.name}-${Date.now()}-${Math.random()}`,
       type: 'spring',
       targetGroup: group,
       startX: group.position.x,
       startZ: group.position.z,
       targetX: target.x,
       targetZ: target.z,
-      duration: 0.55,
+      duration: 0.6,
       elapsed: 0,
-      height: 1.8, // High comic rocket leap!
+      height: 2.2, // High comic spring leap
       onComplete,
     });
   }
@@ -122,7 +122,7 @@ export class AnimationManager {
   ) {
     const target = squareToWorld(finalRow, finalCol);
     this.activeAnimations.push({
-      id: `teleport-${group.name}-${Date.now()}`,
+      id: `teleport-${group.name}-${Date.now()}-${Math.random()}`,
       type: 'teleport',
       targetGroup: group,
       startX: group.position.x,
@@ -135,6 +135,83 @@ export class AnimationManager {
     });
   }
 
+  // Animate Mega Hammer leap and mega smash down
+  public animateHammerSmash(
+    group: THREE.Group,
+    targetRow: number,
+    targetCol: number,
+    onComplete?: () => void
+  ) {
+    const target = squareToWorld(targetRow, targetCol);
+    soundEngine.playHammerSmash();
+    this.triggerCameraShake(0.4, 0.5);
+
+    this.activeAnimations.push({
+      id: `hammer-${group.name}-${Date.now()}-${Math.random()}`,
+      type: 'hammer_smash',
+      targetGroup: group,
+      startX: group.position.x,
+      startZ: group.position.z,
+      targetX: target.x,
+      targetZ: target.z,
+      duration: 0.55,
+      elapsed: 0,
+      height: 2.5,
+      onComplete,
+    });
+  }
+
+  // Animate Rocket Boots flight
+  public animateRocketJump(
+    group: THREE.Group,
+    targetRow: number,
+    targetCol: number,
+    onComplete?: () => void
+  ) {
+    const target = squareToWorld(targetRow, targetCol);
+    soundEngine.playRocket();
+    this.triggerCameraShake(0.15, 0.3);
+
+    this.activeAnimations.push({
+      id: `rocket-${group.name}-${Date.now()}-${Math.random()}`,
+      type: 'rocket_jump',
+      targetGroup: group,
+      startX: group.position.x,
+      startZ: group.position.z,
+      targetX: target.x,
+      targetZ: target.z,
+      duration: 0.55,
+      elapsed: 0,
+      height: 1.8,
+      onComplete,
+    });
+  }
+
+  // Attack bounce / shield block bump
+  public animateBump(
+    group: THREE.Group,
+    targetRow: number,
+    targetCol: number,
+    onComplete?: () => void
+  ) {
+    const target = squareToWorld(targetRow, targetCol);
+    soundEngine.playShield();
+    this.triggerCameraShake(0.2, 0.25);
+
+    this.activeAnimations.push({
+      id: `bump-${group.name}-${Date.now()}-${Math.random()}`,
+      type: 'bump',
+      targetGroup: group,
+      startX: group.position.x,
+      startZ: group.position.z,
+      targetX: target.x,
+      targetZ: target.z,
+      duration: 0.4,
+      elapsed: 0,
+      onComplete,
+    });
+  }
+
   // Animate capture knockback (loser sent flying into orbit)
   public animateCaptureKnockback(
     capturedGroup: THREE.Group,
@@ -142,34 +219,32 @@ export class AnimationManager {
   ) {
     soundEngine.playCapture();
     this.triggerHitstop(0.06);
-    this.triggerCameraShake(0.35, 0.35);
+    this.triggerCameraShake(0.35, 0.4);
 
     const angle = Math.random() * Math.PI * 2;
     const flyDist = 8;
     this.activeAnimations.push({
-      id: `knockback-${capturedGroup.name}-${Date.now()}`,
+      id: `knockback-${capturedGroup.name}-${Date.now()}-${Math.random()}`,
       type: 'knockback',
       targetGroup: capturedGroup,
       startX: capturedGroup.position.x,
       startZ: capturedGroup.position.z,
       targetX: capturedGroup.position.x + Math.cos(angle) * flyDist,
       targetZ: capturedGroup.position.z + Math.sin(angle) * flyDist,
-      duration: 0.7,
+      duration: 0.75,
       elapsed: 0,
-      height: 5.0,
+      height: 5.5,
       onComplete,
     });
   }
 
   // Per-frame tick update
   public update(dt: number, piecesMap: Map<string, THREE.Group>, particleGroup: THREE.Group, time: number) {
-    // If in hitstop, reduce timer and freeze active piece animations for punchy game feel!
     if (this.hitstopTimer > 0) {
       this.hitstopTimer -= dt;
       return;
     }
 
-    // Camera shake decay
     if (this.cameraShakeTime > 0) {
       this.cameraShakeTime -= dt;
       if (this.cameraShakeTime < 0) this.cameraShakeTime = 0;
@@ -180,46 +255,56 @@ export class AnimationManager {
       const anim = this.activeAnimations[i];
       anim.elapsed += dt;
       const progress = Math.min(1, anim.elapsed / anim.duration);
-
       const group = anim.targetGroup;
 
-      if (anim.type === 'hop' || anim.type === 'spring') {
-        // Linear horizontal motion
+      if (anim.type === 'hop' || anim.type === 'spring' || anim.type === 'rocket_jump') {
         group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
         group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
 
-        // Parabolic vertical arc
         const peakHeight = anim.height || 0.65;
         const arc = Math.sin(progress * Math.PI) * peakHeight;
         group.position.y = arc;
 
-        // Lean slightly forward into motion
         const lean = Math.sin(progress * Math.PI) * 0.25;
         group.rotation.x = lean;
 
-        // Landing squash and stretch
         if (progress > 0.85) {
-          const squash = 1 - Math.sin((progress - 0.85) / 0.15 * Math.PI) * 0.2;
+          const squash = 1 - Math.sin(((progress - 0.85) / 0.15) * Math.PI) * 0.2;
           group.scale.set(1 / squash, squash, 1 / squash);
         } else {
           group.scale.set(1, 1, 1);
         }
+      } else if (anim.type === 'hammer_smash') {
+        // High arc leap followed by fast slam down
+        group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
+        group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
+
+        // Trajectory with fast descent
+        const yCurve = progress < 0.6 ? Math.sin((progress / 0.6) * (Math.PI / 2)) : Math.cos(((progress - 0.6) / 0.4) * (Math.PI / 2));
+        group.position.y = yCurve * (anim.height || 2.5);
+
+        // Rotation
+        group.rotation.x = Math.sin(progress * Math.PI) * 0.8;
+      } else if (anim.type === 'bump') {
+        // Move towards target halfway then bounce back
+        const p = Math.sin(progress * Math.PI) * 0.5;
+        group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, p);
+        group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, p);
+        group.position.y = Math.sin(progress * Math.PI) * 0.3;
+        group.rotation.z = Math.sin(progress * Math.PI * 2) * 0.2;
       } else if (anim.type === 'slip') {
-        // Fast sliding across the floor + comic spinning
         group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
         group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
         group.position.y = Math.sin(progress * Math.PI * 4) * 0.12;
 
-        group.rotation.y += dt * 15;
+        group.rotation.y += dt * 16;
         group.rotation.z = Math.sin(progress * Math.PI * 6) * 0.25;
       } else if (anim.type === 'teleport') {
         if (progress < 0.5) {
-          // Shrink & spin out
           const s = 1 - progress * 2;
           group.scale.set(s, s, s);
-          group.rotation.y += dt * 12;
+          group.rotation.y += dt * 14;
         } else {
-          // Pop up at target
           group.position.x = anim.targetX;
           group.position.z = anim.targetZ;
           const s = (progress - 0.5) * 2;
@@ -228,17 +313,22 @@ export class AnimationManager {
       } else if (anim.type === 'knockback') {
         group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
         group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
-        group.position.y = Math.sin(progress * Math.PI * 0.5) * (anim.height || 4);
+        group.position.y = Math.sin(progress * Math.PI * 0.5) * (anim.height || 5.5);
 
         group.rotation.x += dt * 10;
         group.rotation.y += dt * 12;
-        const scale = 1 - progress * 0.8;
+        const scale = Math.max(0.01, 1 - progress * 0.85);
         group.scale.set(scale, scale, scale);
       }
 
       if (progress >= 1) {
-        group.position.x = anim.targetX;
-        group.position.z = anim.targetZ;
+        if (anim.type !== 'bump') {
+          group.position.x = anim.targetX;
+          group.position.z = anim.targetZ;
+        } else {
+          group.position.x = anim.startX;
+          group.position.z = anim.startZ;
+        }
         group.position.y = 0;
         group.rotation.x = 0;
         group.rotation.z = 0;
@@ -251,21 +341,18 @@ export class AnimationManager {
 
     // Update Idle Animations for living pieces
     piecesMap.forEach((model) => {
-      // Don't override position if currently animating
       const isAnimating = this.activeAnimations.some((a) => a.targetGroup === model);
       if (isAnimating) return;
 
       const { wobbleSpeed, wobblePhase, type } = model.userData;
       const t = time * wobbleSpeed + wobblePhase;
 
-      // Subtle breathing squash & stretch
-      const breath = Math.sin(t) * 0.03;
+      const breath = Math.sin(t) * 0.035;
       model.scale.set(1 - breath * 0.5, 1 + breath, 1 - breath * 0.5);
 
       const torso = model.getObjectByName('torsoGroup');
       if (torso) {
-        // Gentle rhythmic sway
-        torso.rotation.z = Math.sin(t * 0.8) * 0.03;
+        torso.rotation.z = Math.sin(t * 0.8) * 0.035;
       }
 
       const head = model.getObjectByName('headGroup');
@@ -273,7 +360,6 @@ export class AnimationManager {
         head.rotation.y = Math.sin(t * 0.5) * 0.08;
       }
 
-      // King mustache wiggle
       if (type === 'king') {
         const mustache = model.getObjectByName('mustache');
         if (mustache) {
@@ -281,7 +367,6 @@ export class AnimationManager {
         }
       }
 
-      // Wizard staff float
       if (type === 'bishop') {
         const staff = model.getObjectByName('weapon');
         if (staff) {
@@ -289,7 +374,6 @@ export class AnimationManager {
         }
       }
 
-      // Golem heavy fist sway
       if (type === 'rook') {
         const armL = model.getObjectByName('armLeft');
         const armR = model.getObjectByName('armRight');
@@ -310,7 +394,7 @@ export class AnimationManager {
       p.position.y += data.vy * dt;
       p.position.z += data.vz * dt;
 
-      data.vy -= 9.8 * dt * 0.5; // gravity
+      data.vy -= 9.8 * dt * 0.6; // gravity
       p.rotation.x += data.rotX * dt;
       p.rotation.y += data.rotY * dt;
 

@@ -24,8 +24,8 @@ export class PeerMultiplayer {
     callbacks: MultiplayerCallbacks,
     customRoomCode?: string
   ): Promise<string> {
-    this.callbacks = callbacks;
     this.cleanup();
+    this.callbacks = callbacks;
 
     return new Promise((resolve, reject) => {
       // Create random 5-char room id or use requested
@@ -47,7 +47,13 @@ export class PeerMultiplayer {
         this.peer.on('connection', (connection) => {
           this.conn = connection;
           this.setupConnectionListeners(connection);
-          this.callbacks?.onOpponentJoined();
+          // Only report the opponent once the data channel is open, otherwise the initial
+          // game state sync would be dropped.
+          if (connection.open) {
+            this.callbacks?.onOpponentJoined();
+          } else {
+            connection.on('open', () => this.callbacks?.onOpponentJoined());
+          }
         });
 
         this.peer.on('error', (err) => {
@@ -66,8 +72,8 @@ export class PeerMultiplayer {
     roomCode: string,
     callbacks: MultiplayerCallbacks
   ): Promise<void> {
-    this.callbacks = callbacks;
     this.cleanup();
+    this.callbacks = callbacks;
 
     return new Promise((resolve, reject) => {
       try {
@@ -100,11 +106,13 @@ export class PeerMultiplayer {
 
   private setupConnectionListeners(connection: DataConnection) {
     connection.on('data', (data) => {
+      if (this.conn !== connection) return;
       const msg = data as PeerMessage;
       this.callbacks?.onMessage(msg);
     });
 
     connection.on('close', () => {
+      if (this.conn !== connection) return; // stale connection
       this.callbacks?.onDisconnected();
     });
 
@@ -119,7 +127,14 @@ export class PeerMultiplayer {
     }
   }
 
+  public isConnected(): boolean {
+    return !!(this.conn && this.conn.open);
+  }
+
   public cleanup() {
+    // Detach callbacks first so closing an old connection does not report a disconnect
+    const cb = this.callbacks;
+    this.callbacks = null;
     if (this.conn) {
       this.conn.close();
       this.conn = null;
@@ -128,6 +143,7 @@ export class PeerMultiplayer {
       this.peer.destroy();
       this.peer = null;
     }
+    this.callbacks = cb;
   }
 }
 

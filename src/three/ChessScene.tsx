@@ -46,7 +46,6 @@ interface ChessSceneProps {
   onSquareClick: (row: number, col: number) => void;
 }
 
-// Pre-allocated math objects to avoid GC in the render loop
 const _raycaster = new THREE.Raycaster();
 const _mouse = new THREE.Vector2();
 const _targetCameraPos = new THREE.Vector3();
@@ -89,7 +88,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     endPos: new THREE.Vector3(0, 10.5, 9.5),
   });
 
-  // Scene references kept across renders
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
@@ -103,7 +101,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // 1. Detect software WebGL guard
     const isSoftwareGl = (() => {
       const gl = document.createElement('canvas').getContext('webgl2');
       if (!gl) return true;
@@ -114,7 +111,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
     })();
 
-    // 2. Renderer setup
     const renderer = new THREE.WebGLRenderer({
       antialias: !isSoftwareGl,
       powerPreference: 'high-performance',
@@ -132,7 +128,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 3. Scene and Horizon Fog mapped to the 8 environments
     const bgColors: Record<BoardTheme, number> = {
       royal_wood: 0x0f172a,
       volcano_dungeon: 0x180907,
@@ -150,12 +145,10 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     scene.fog = new THREE.Fog(scene.background, 11, 27);
     sceneRef.current = scene;
 
-    // 4. RoomEnvironment for crisp PBR reflections
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     pmremGenerator.dispose();
 
-    // 5. Camera & OrbitControls
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
     camera.position.set(0, 10.5, 9.5);
     camera.lookAt(0, 0, 0);
@@ -164,13 +157,12 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.08;
-    controls.maxPolarAngle = Math.PI / 2.05; // Prevent camera going under board
+    controls.maxPolarAngle = Math.PI / 2.05;
     controls.minDistance = 5;
     controls.maxDistance = 22;
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
-    // 6. Lighting Rig
     const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 1.2);
     scene.add(hemiLight);
 
@@ -194,16 +186,13 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     rimLight.position.set(-8, 6, -8);
     scene.add(rimLight);
 
-    // 7. Chessboard
     const boardCtx = createChessboard(theme);
     scene.add(boardCtx.boardGroup);
     boardCtxRef.current = boardCtx;
 
-    // 8. Raycasting Click Interaction
     const handlePointerDown = (e: MouseEvent) => {
-      if (e.button !== 0) return; // Left click only
+      if (e.button !== 0) return;
 
-      // Cancel and skip fly-in on click so user is immediately in control
       if (flyInStateRef.current.active) {
         flyInStateRef.current.active = false;
         if (controlsRef.current && cameraRef.current) {
@@ -255,7 +244,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
     renderer.domElement.addEventListener('pointerdown', handlePointerDown);
 
-    // 9. Resize Handling
     const handleResize = () => {
       if (!mountRef.current || !rendererRef.current || !cameraRef.current) return;
       const w = mountRef.current.clientWidth;
@@ -266,26 +254,9 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     };
     window.addEventListener('resize', handleResize);
 
-    // 10. Animation Loop (using high-precision performance.now without THREE.Clock deprecation)
     let frameId = 0;
     let lastTime = performance.now();
     let elapsedTime = 0;
-
-    function afterDraw(cb: () => void) {
-      const gl = renderer.getContext() as WebGL2RenderingContext;
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          frameId = window.setTimeout(poll, 5);
-        } else {
-          gl.deleteSync(sync);
-          frameId = window.setTimeout(cb, 80);
-        }
-      };
-      frameId = window.setTimeout(poll, 5);
-    }
 
     const tick = () => {
       const now = performance.now();
@@ -294,7 +265,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       elapsedTime += dt;
       const time = elapsedTime;
 
-      // Cinematic Camera Fly-in or normal OrbitControls
       const flyIn = flyInStateRef.current;
       if (flyIn && flyIn.active) {
         flyIn.progress += dt / flyIn.duration;
@@ -308,10 +278,8 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
           onFlyInFinishedRef.current?.();
         } else {
           const p = flyIn.progress;
-          // Smooth easeInOutCubic curve
           const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
           camera.position.lerpVectors(flyIn.startPos, flyIn.endPos, ease);
-          // Dramatic curved arc in Y
           camera.position.y += Math.sin(p * Math.PI) * 2.2;
           camera.lookAt(0, 0, 0);
         }
@@ -319,7 +287,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
         controls.update();
       }
 
-      // Camera shake integration
       const animManager = animManagerRef.current;
       if (animManager.cameraShakeTime > 0) {
         const intensity = animManager.cameraShakeIntensity;
@@ -327,31 +294,22 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
         camera.position.y += (Math.random() - 0.5) * intensity;
       }
 
-      // Update animations & particles
       animManager.update(dt, piecesMapRef.current, boardCtx.particleGroup, time);
 
-      // Rotate floating bonus items
       boardCtx.itemsGroup.children.forEach((itGroup) => {
         const { baseY, rotSpeed, phase } = itGroup.userData;
         itGroup.position.y = baseY + Math.sin(time * 3 + phase) * 0.08;
         itGroup.rotation.y += dt * (rotSpeed || 2);
       });
 
-      // Render frame
       renderer.render(scene, camera);
-
-      if (isSoftwareGl) {
-        afterDraw(tick);
-      } else {
-        frameId = requestAnimationFrame(tick);
-      }
+      frameId = requestAnimationFrame(tick);
     };
 
     tick();
 
     return () => {
       cancelAnimationFrame(frameId);
-      clearTimeout(frameId);
       window.removeEventListener('resize', handleResize);
       renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
       renderer.dispose();
@@ -378,7 +336,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     }
 
     if (isFlyInActive) {
-      // Cinematic overhead perspective: high up and angled
       const startPos = new THREE.Vector3(-14, 21, 20);
       camera.position.copy(startPos);
       camera.lookAt(0, 0, 0);
@@ -394,7 +351,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       return;
     }
 
-    // Normal view preset switch if not currently flying in
     if (!flyInStateRef.current.active) {
       camera.position.copy(_targetCameraPos);
       controls.target.copy(_targetCameraLookAt);
@@ -402,7 +358,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     }
   }, [activeCameraView, isFlyInActive]);
 
-  // Synchronize 3D Pieces with React Board State
+  // Synchronize 3D Pieces with React Board State & trigger move animations
   useEffect(() => {
     const scene = sceneRef.current;
     const boardCtx = boardCtxRef.current;
@@ -410,8 +366,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
     const piecesMap = piecesMapRef.current;
     const animManager = animManagerRef.current;
-
-    // Find all piece IDs currently on board
     const currentPieceIds = new Set<string>();
 
     for (let r = 0; r < 8; r++) {
@@ -423,7 +377,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
         let model = piecesMap.get(piece.id);
 
         if (!model) {
-          // Create 3D living character model
           model = createCharacterModel(piece.type, piece.color, piece.id);
           const worldPos = squareToWorld(r, c);
           model.position.set(worldPos.x, 0, worldPos.z);
@@ -431,10 +384,9 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
           piecesMap.set(piece.id, model);
         }
 
-        // Update status effects (shield, frozen ice, dizzy eyes)
         updateCharacterState(model, piece);
 
-        // Check if last move moved this piece
+        // Check if last move animated this piece
         if (
           lastMove &&
           lastMove !== prevLastMoveRef.current &&
@@ -443,8 +395,14 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
           const worldTarget = squareToWorld(r, c);
           const dist = Math.hypot(model.position.x - worldTarget.x, model.position.z - worldTarget.z);
 
-          if (dist > 0.1) {
-            if (lastMove.trapTriggered) {
+          if (dist > 0.05) {
+            if (lastMove.effect === 'hammer_smash') {
+              animManager.animateHammerSmash(model, r, c);
+            } else if (lastMove.effect === 'rocket_jump') {
+              animManager.animateRocketJump(model, r, c);
+            } else if (lastMove.effect === 'shield_block' && lastMove.attackTarget) {
+              animManager.animateBump(model, lastMove.attackTarget.row, lastMove.attackTarget.col);
+            } else if (lastMove.trapTriggered) {
               if (lastMove.trapTriggered.type === 'banana') {
                 animManager.animateBananaSlip(model, r, c);
               } else if (lastMove.trapTriggered.type === 'spring') {
@@ -462,10 +420,9 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       }
     }
 
-    // Handle captures: pieces in map that are no longer on board
+    // Handle captures
     piecesMap.forEach((model, id) => {
       if (!currentPieceIds.has(id)) {
-        // Was captured! Animate knockback blast
         spawnConfettiBurst(boardCtx, {
           x: model.position.x,
           y: model.position.y + 0.5,
