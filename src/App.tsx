@@ -115,6 +115,16 @@ export default function App() {
   // Cameras & Visuals
   const [activeCameraView, setActiveCameraView] = useState<'iso' | 'white' | 'black' | 'top'>('iso');
   const [isFlyInActive, setIsFlyInActive] = useState<boolean>(false);
+  // Auto-dismiss fly-in intro banner after 2 seconds
+  useEffect(() => {
+    if (isFlyInActive) {
+      const timer = setTimeout(() => {
+        setIsFlyInActive(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [isFlyInActive]);
+
   const [notifications, setNotifications] = useState<FloatingNotification[]>([]);
   const [currentQuote, setCurrentQuote] = useState<CharacterQuote | null>(null);
   const [isMuted, setIsMuted] = useState<boolean>(soundEngine.getMuted());
@@ -1087,10 +1097,16 @@ export default function App() {
         onSquareClick={handleSquareClick}
       />
 
-      {/* Cinematic Fly-In Intro Banner */}
+      {/* Cinematic Fly-In Intro Banner (Click anywhere to dismiss or auto-hides) */}
       {isFlyInActive && screen === 'playing' && (
-        <div className="fixed inset-0 z-40 pointer-events-none flex flex-col items-center justify-center animate-in zoom-in-75 fade-in duration-300">
-          <div className="rotate-[-2deg] bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-['Bangers'] text-4xl sm:text-6xl tracking-wider px-8 py-3.5 rounded-3xl border-3 border-black shadow-[0_15px_40px_rgba(245,158,11,0.5)]">
+        <div
+          onClick={() => {
+            soundEngine.playSelect();
+            setIsFlyInActive(false);
+          }}
+          className="fixed inset-0 z-40 cursor-pointer flex flex-col items-center justify-center animate-in zoom-in-75 fade-in duration-300 select-none bg-black/30 pointer-events-auto"
+        >
+          <div className="rotate-[-2deg] bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-['Bangers'] text-4xl sm:text-6xl tracking-wider px-8 py-3.5 rounded-3xl border-3 border-black shadow-[0_15px_40px_rgba(245,158,11,0.5)] active:scale-95 transition-transform">
             {gameStyle === 'battlefield'
               ? `⚔️ BOJIŠTĚ: ${BATTLEFIELD_MAPS[battlefieldMapId]?.name.toUpperCase()}! ⚔️`
               : '⚔️ BITVA ZAČÍNÁ! ⚔️'}
@@ -1166,6 +1182,9 @@ export default function App() {
               startNewGame(newMode, aiDifficulty, theme, gameStyle, battlefieldMapId);
             }
           }}
+          onChangeArena={(style, mapId) => {
+            startNewGame(gameMode, aiDifficulty, theme, style, mapId);
+          }}
           onOpenUpdates={() => setIsUpdateModalOpen(true)}
           onOpenBattlefieldRules={() => setIsBattlefieldRuleModalOpen(true)}
           onTriggerSpecialAction={(actionId) => setActiveSpecialTargeting(actionId)}
@@ -1207,7 +1226,10 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         theme={theme}
-        onChangeTheme={setTheme}
+        onChangeTheme={(newTheme) => {
+          setTheme(newTheme);
+          startNewGame(gameMode, aiDifficulty, newTheme, gameStyle, battlefieldMapId);
+        }}
         trapCount={trapCount}
         onChangeTrapCount={setTrapCount}
         bonusItemsEnabled={bonusItemsEnabled}

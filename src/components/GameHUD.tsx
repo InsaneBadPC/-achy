@@ -10,13 +10,14 @@ import {
   FloatingNotification,
   GameMode,
   PieceType,
+  GameStyle,
 } from '../types/game';
 import { CharacterQuote } from '../game/characterQuotes';
 import { ComicSpeechBubble } from './ComicSpeechBubble';
 import { PWAInstallButton } from './PWAInstallButton';
 import { soundEngine } from '../audio/soundEngine';
 import { voiceEngine } from '../audio/voiceEngine';
-import { BattlefieldState } from '../types/battlefield';
+import { BattlefieldState, BattlefieldMapId } from '../types/battlefield';
 import { BATTLEFIELD_MAPS } from '../game/battlefieldData';
 import {
   RotateCcw,
@@ -32,6 +33,7 @@ import {
   Globe,
   RefreshCw,
   Sparkles,
+  Mountain,
   Mic,
   MicOff,
   Info,
@@ -69,6 +71,7 @@ interface GameHUDProps {
   onRestartGame: () => void;
   onDismissQuote: () => void;
   onChangeGameMode: (mode: GameMode) => void;
+  onChangeArena?: (style: GameStyle, mapId?: BattlefieldMapId) => void;
   onOpenUpdates: () => void;
   onOpenBattlefieldRules?: () => void;
   onTriggerSpecialAction?: (actionId: 'katapult' | 'zavreni_brany') => void;
@@ -104,6 +107,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onRestartGame,
   onDismissQuote,
   onChangeGameMode,
+  onChangeArena,
   onOpenUpdates,
   onOpenBattlefieldRules,
   onTriggerSpecialAction,
@@ -326,16 +330,16 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </button>
 
             {showModeSwitch && (
-              <div className="absolute right-0 top-12 w-48 rounded-2xl bg-slate-900 border border-white/15 shadow-2xl p-2 flex flex-col gap-1 z-30 animate-in fade-in zoom-in-95">
-                <span className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">
-                  Přepnout mód (restartuje hru):
+              <div className="absolute right-0 top-12 w-56 rounded-2xl bg-slate-900 border border-white/15 shadow-2xl p-2.5 flex flex-col gap-1 z-30 animate-in fade-in zoom-in-95">
+                <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 uppercase">
+                  Režim hráčů (Nová hra):
                 </span>
                 <button
                   onClick={() => {
                     onChangeGameMode('ai');
                     setShowModeSwitch(false);
                   }}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                     gameMode === 'ai' ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-200 hover:bg-white/10'
                   }`}
                 >
@@ -347,7 +351,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                     onChangeGameMode('local');
                     setShowModeSwitch(false);
                   }}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                     gameMode === 'local' ? 'bg-cyan-400 text-slate-950 font-black' : 'text-slate-200 hover:bg-white/10'
                   }`}
                 >
@@ -359,13 +363,76 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                     onChangeGameMode('multiplayer');
                     setShowModeSwitch(false);
                   }}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                  className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
                     gameMode === 'multiplayer' ? 'bg-rose-400 text-slate-950 font-black' : 'text-slate-200 hover:bg-white/10'
                   }`}
                 >
                   <Globe className="w-4 h-4" />
                   <span>Online Multiplayer</span>
                 </button>
+
+                {/* Arena / Battlefield Switcher */}
+                <div className="border-t border-white/10 my-1 pt-1.5 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-amber-300 px-2 py-0.5 uppercase flex items-center gap-1">
+                    <Mountain className="w-3 h-3" /> Výběr arény (Nová hra):
+                  </span>
+                  <button
+                    onClick={() => {
+                      onChangeArena?.('battlefield', 'priroda');
+                      setShowModeSwitch(false);
+                    }}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                      gameStyle === 'battlefield' && battlefieldState?.mapId === 'priroda'
+                        ? 'bg-amber-400 text-slate-950 font-black'
+                        : 'text-slate-200 hover:bg-white/10'
+                    }`}
+                  >
+                    <span>🏞️</span>
+                    <span>1. Příroda (Záplavy)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onChangeArena?.('battlefield', 'prusmyk');
+                      setShowModeSwitch(false);
+                    }}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                      gameStyle === 'battlefield' && battlefieldState?.mapId === 'prusmyk'
+                        ? 'bg-amber-400 text-slate-950 font-black'
+                        : 'text-slate-200 hover:bg-white/10'
+                    }`}
+                  >
+                    <span>🏔️</span>
+                    <span>2. Průsmyk (Lávky)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onChangeArena?.('battlefield', 'oblehani');
+                      setShowModeSwitch(false);
+                    }}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                      gameStyle === 'battlefield' && battlefieldState?.mapId === 'oblehani'
+                        ? 'bg-amber-400 text-slate-950 font-black'
+                        : 'text-slate-200 hover:bg-white/10'
+                    }`}
+                  >
+                    <span>🏰</span>
+                    <span>3. Obléhání (Katapult)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onChangeArena?.('classic');
+                      setShowModeSwitch(false);
+                    }}
+                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all text-left cursor-pointer ${
+                      gameStyle === 'classic'
+                        ? 'bg-amber-400 text-slate-950 font-black'
+                        : 'text-slate-200 hover:bg-white/10'
+                    }`}
+                  >
+                    <span>♟️</span>
+                    <span>Klasické šachy</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

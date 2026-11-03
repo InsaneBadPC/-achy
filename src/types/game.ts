@@ -5,6 +5,7 @@
 
 export type PieceType = 'pawn' | 'knight' | 'bishop' | 'rook' | 'queen' | 'king';
 export type PieceColor = 'white' | 'black';
+export type GameStyle = 'classic' | 'battlefield';
 
 export type TrapType =
   | 'banana'       // Slips 1 extra square, 360 spin

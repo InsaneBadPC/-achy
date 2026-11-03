@@ -362,6 +362,21 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     }
   }, [gameStyle, battlefieldState?.mapId, battlefieldState?.halfMoveCount, battlefieldState?.gateClosed]);
 
+  // Camera fly-in trigger
+  useEffect(() => {
+    if (isFlyInActive) {
+      flyInStateRef.current.active = true;
+      flyInStateRef.current.progress = 0;
+      if (controlsRef.current) {
+        controlsRef.current.enabled = false;
+      }
+      if (cameraRef.current) {
+        cameraRef.current.position.copy(flyInStateRef.current.startPos);
+        cameraRef.current.lookAt(0, 0, 0);
+      }
+    }
+  }, [isFlyInActive]);
+
   // Camera presets
   useEffect(() => {
     if (!cameraRef.current || !controlsRef.current) return;
