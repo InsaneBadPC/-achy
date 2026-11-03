@@ -229,13 +229,11 @@ export function createEyeTexture(
     }
     ctx.stroke();
   } else if (mood === 'surprised') {
-    // Wide open shocked pupil
     ctx.fillStyle = '#111827';
     ctx.beginPath();
     ctx.arc(64, 64, 38, 0, Math.PI * 2);
     ctx.fill();
 
-    // Dual highlights
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(52, 50, 14, 0, Math.PI * 2);

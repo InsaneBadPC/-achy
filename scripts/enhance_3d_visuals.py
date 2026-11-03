@@ -554,3 +554,4 @@ if __name__ == "__main__":
     update_chess_scene()
     update_character_factory()
     print("Visual enhancement script finished successfully!")
+
