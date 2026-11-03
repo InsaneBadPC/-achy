@@ -123,3 +123,4 @@ export interface BattlefieldState {
   immobilizedPieces: Record<string, number>; // pieceId -> turns left
   activeTip: string | null;
 }
+

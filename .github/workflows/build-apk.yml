@@ -100,7 +100,7 @@ jobs:
             
             - **Verze:** `${{ env.RELEASE_VERSION }}`
             - **Build:** `${{ github.run_number }}`
-            - **Co je nového:** Automatická detekce aktualizací z GitHubu, opravená AI, plně funkční bonusy a pasti, české dabované hlášky postaviček a modernizovaná 3D grafika.
+            - **Co je nového:** Nový herní mód Bojiště (mapy Příroda, Průsmyk, Obléhání), výškový terén, katapult a brány, automatická detekce aktualizací z GitHubu, opravená AI, funkční bonusy a pasti, české dabované hlášky a modernizovaná 3D grafika.
             - **Instalační balíček:** Stáhněte přiložený soubor `.apk` přímo v aplikaci nebo níže.
           files: WackyChess-v*.apk
           draft: false

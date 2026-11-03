@@ -217,3 +217,4 @@ export const BattlefieldRuleModal: React.FC<BattlefieldRuleModalProps> = ({ stat
     </div>
   );
 };
+

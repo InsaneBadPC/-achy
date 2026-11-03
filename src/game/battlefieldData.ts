@@ -99,3 +99,4 @@ export function getHeightAt(state: BattlefieldState, row: number, col: number): 
   const terrain = getTerrainAt(state, row, col);
   return terrain.height !== null ? terrain.height : 0;
 }
+

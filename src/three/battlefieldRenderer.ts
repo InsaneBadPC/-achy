@@ -293,3 +293,4 @@ export function createBattlefieldBoard(state: BattlefieldState): BattlefieldMesh
     targetReticleMesh,
   };
 }
+
