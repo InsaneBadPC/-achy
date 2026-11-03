@@ -296,7 +296,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       }
 
       // Update particle and character animations
-      animManagerRef.current.update(delta);
+      animManagerRef.current.update(delta, piecesMapRef.current, boardCtx.particleGroup, elapsed);
 
       // Keep status badges facing the camera
       piecesMapRef.current.forEach((model) => {

@@ -25,6 +25,7 @@ export type QuoteEvent =
   | 'select'
   | 'promotion'
   | 'shield_block'
+  | 'shield_bounce'
   | 'mirror_reflect'
   | 'hammer_smash'
   | 'rocket_jump'
@@ -35,7 +36,8 @@ export type QuoteEvent =
   | 'lightning_strike'
   | 'magnet_pull'
   | 'tnt_blast'
-  | 'glue_stuck';
+  | 'glue_stuck'
+  | 'special';
 
 type Pool = Record<PieceType, string[]>;
 
@@ -284,6 +286,7 @@ export function getRandomQuote(
       tag = 'BAM!';
       break;
     case 'shield_block':
+    case 'shield_bounce':
     case 'mirror_reflect':
     case 'hammer_smash':
     case 'rocket_jump':
@@ -293,21 +296,22 @@ export function getRandomQuote(
     case 'magnet_pull':
     case 'tnt_blast':
     case 'glue_stuck':
-      pool = EFFECT_QUOTES[event];
+    case 'special':
+      pool = EFFECT_QUOTES[event === 'shield_bounce' ? 'shield_block' : event === 'special' ? 'extra_turn' : event];
       tag =
         event === 'hammer_smash'
-          ? 'CRACK!'
+          ? 'WHAM!'
+          : event === 'rocket_jump'
+          ? 'BOING!'
           : event === 'mirror_reflect'
           ? 'ZAP!'
-          : event === 'shield_block'
-          ? 'BOING!'
-          : event === 'frozen'
-          ? 'BRR!'
-          : event === 'tnt_blast'
-          ? 'BOOM!'
+          : event === 'shield_block' || event === 'shield_bounce'
+          ? 'CRACK!'
           : event === 'lightning_strike'
           ? 'ZAP!'
-          : 'WOW!';
+          : event === 'tnt_blast'
+          ? 'BOOM!'
+          : 'POW!';
       break;
     case 'victory':
       speakerType = 'king';

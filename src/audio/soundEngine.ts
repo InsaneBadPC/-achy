@@ -251,6 +251,36 @@ class SoundEngine {
     this.tone('square', 300, 80, t + 0.05, 0.3, 0.15);
   }
 
+  public playMove() {
+    this.playStep();
+  }
+
+  public playHammer() {
+    this.playHammerSmash();
+  }
+
+  public playShieldBounce() {
+    this.playShield();
+  }
+
+  public playThunder() {
+    this.vibrate([50, 30, 120]);
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.tone('sawtooth', 880, 120, t, 0.25, 0.15);
+    this.noise(t, 0.6, 0.5, 'lowpass', 2400, 200, 0.6);
+  }
+
+  public playExplosion() {
+    this.vibrate([100, 50, 200]);
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    this.tone('sine', 160, 40, t, 0.6, 0.9, false);
+    this.noise(t, 0.8, 0.6, 'lowpass', 2200, 150, 0.8);
+  }
+
   public playStun() {
     const ctx = this.ready();
     if (!ctx) return;

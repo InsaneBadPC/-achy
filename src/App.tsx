@@ -977,21 +977,40 @@ export default function App() {
   const handleHostRoom = useCallback(async () => {
     return peerMultiplayer.init({
       onConnected: () => {
-        setIsMultiplayerConnected(true);
         setMyColor('white');
+        setGameMode('multiplayer');
+      },
+      onOpponentJoined: () => {
+        setIsMultiplayerConnected(true);
+        setIsMultiplayerOpen(false);
         startNewGame('multiplayer', aiDifficulty, theme);
+        addNotification({
+          id: `opp-joined-${Date.now()}`,
+          text: 'Protihráč se připojil! Bitva začíná!',
+          emoji: '🎉',
+          color: '#10b981',
+        });
       },
       onMessage: (msg: PeerMessage) => {
         if (msg.type === 'MOVE') {
           executeMove(msg.move.from, msg.move.to, true);
         } else if (msg.type === 'EMOTE') {
           addNotification({
-            id: `emote-${Date.now()}`,
+            id: `remote-emote-${Date.now()}`,
             text: msg.text,
             emoji: msg.emoji,
-            color: '#38bdf8',
+            color: '#f43f5e',
           });
         }
+      },
+      onDisconnected: () => {
+        setIsMultiplayerConnected(false);
+        addNotification({
+          id: `disc-${Date.now()}`,
+          text: 'Protihráč se odpojil.',
+          emoji: '🔌',
+          color: '#ef4444',
+        });
       },
       onError: (err) => {
         console.error('Peer error:', err);
@@ -1000,30 +1019,47 @@ export default function App() {
   }, [aiDifficulty, theme, startNewGame, executeMove, addNotification]);
 
   const handleJoinRoom = useCallback(
-    async (hostId: string) => {
-      await peerMultiplayer.init({
+    async (code: string) => {
+      return peerMultiplayer.joinRoom(code, {
         onConnected: () => {
-          setIsMultiplayerConnected(true);
           setMyColor('black');
+          setGameMode('multiplayer');
+          setIsMultiplayerConnected(true);
           startNewGame('multiplayer', aiDifficulty, theme);
+          setActiveCameraView('black');
+          addNotification({
+            id: `joined-ok-${Date.now()}`,
+            text: 'Připojeno k hostiteli! Hraješ za Černé.',
+            emoji: '⚔️',
+            color: '#10b981',
+          });
         },
+        onOpponentJoined: () => {},
         onMessage: (msg: PeerMessage) => {
           if (msg.type === 'MOVE') {
             executeMove(msg.move.from, msg.move.to, true);
           } else if (msg.type === 'EMOTE') {
             addNotification({
-              id: `emote-${Date.now()}`,
+              id: `remote-emote-${Date.now()}`,
               text: msg.text,
               emoji: msg.emoji,
-              color: '#38bdf8',
+              color: '#f43f5e',
             });
           }
+        },
+        onDisconnected: () => {
+          setIsMultiplayerConnected(false);
+          addNotification({
+            id: `disc-${Date.now()}`,
+            text: 'Hostitel ukončil spojení.',
+            emoji: '🔌',
+            color: '#ef4444',
+          });
         },
         onError: (err) => {
           console.error('Peer join error:', err);
         },
       });
-      peerMultiplayer.connectToHost(hostId);
     },
     [aiDifficulty, theme, startNewGame, executeMove, addNotification]
   );

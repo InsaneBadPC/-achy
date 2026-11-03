@@ -14,9 +14,9 @@ import {
 export const BATTLEFIELD_GLOBAL_RULES = rawData.globalRules;
 export const TERRAIN_TYPES: Record<string, TerrainType> = rawData.terrainTypes as any;
 export const BATTLEFIELD_MAPS: Record<BattlefieldMapId, BattlefieldMapConfig> = {
-  priroda: rawData.maps[0] as BattlefieldMapConfig,
-  prusmyk: rawData.maps[1] as BattlefieldMapConfig,
-  oblehani: rawData.maps[2] as BattlefieldMapConfig,
+  priroda: rawData.maps[0] as unknown as BattlefieldMapConfig,
+  prusmyk: rawData.maps[1] as unknown as BattlefieldMapConfig,
+  oblehani: rawData.maps[2] as unknown as BattlefieldMapConfig,
 };
 
 export function squareToCoords(square: string): { row: number; col: number } {
