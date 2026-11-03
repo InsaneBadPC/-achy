@@ -15,7 +15,9 @@ import {
   BoardTheme,
   FloatingNotification,
   PeerMessage,
+  ItemType,
 } from './types/game';
+import { BattlefieldMapId, BattlefieldState } from './types/battlefield';
 import {
   createInitialBoard,
   getLegalMoves,
@@ -30,18 +32,31 @@ import {
   handleTrapTrigger,
   ITEM_CONFIG,
 } from './game/trapsAndItems';
+import {
+  createInitialBattlefieldState,
+  BATTLEFIELD_MAPS,
+  squareToCoords,
+  coordsToSquare,
+} from './game/battlefieldData';
+import {
+  getBattlefieldLegalMoves,
+  evaluateBattlefieldGameStatus,
+  advanceBattlefieldTurn,
+  selectBattlefieldAIMove,
+} from './game/battlefieldLogic';
 import { getRandomQuote, CharacterQuote } from './game/characterQuotes';
 import { soundEngine } from './audio/soundEngine';
 import { voiceEngine } from './audio/voiceEngine';
 import { peerMultiplayer } from './network/peerMultiplayer';
 import { checkForGitHubUpdate, AppReleaseInfo } from './services/updateService';
 import { ChessScene } from './three/ChessScene';
-import { TitleScreen } from './components/TitleScreen';
+import { TitleScreen, GameStyle } from './components/TitleScreen';
 import { GameHUD } from './components/GameHUD';
 import { GameOverModal } from './components/GameOverModal';
 import { MultiplayerModal } from './components/MultiplayerModal';
 import { SettingsModal } from './components/SettingsModal';
 import { UpdateModal } from './components/UpdateModal';
+import { BattlefieldRuleModal } from './components/BattlefieldRuleModal';
 
 interface BoardHistoryEntry {
   board: (Piece | null)[][];
@@ -51,10 +66,20 @@ interface BoardHistoryEntry {
   bonusItems: BonusItem[];
   capturedWhite: Piece[];
   capturedBlack: Piece[];
+  battlefieldState?: BattlefieldState | null;
 }
 
 export default function App() {
   const [screen, setScreen] = useState<'title' | 'playing'>('title');
+
+  // Game Mode & Style
+  const [gameStyle, setGameStyle] = useState<GameStyle>('battlefield');
+  const [battlefieldMapId, setBattlefieldMapId] = useState<BattlefieldMapId>('priroda');
+  const [battlefieldState, setBattlefieldState] = useState<BattlefieldState | null>(() =>
+    createInitialBattlefieldState('priroda')
+  );
+  const [isBattlefieldRuleModalOpen, setIsBattlefieldRuleModalOpen] = useState<boolean>(false);
+  const [activeSpecialTargeting, setActiveSpecialTargeting] = useState<'katapult' | 'zavreni_brany' | null>(null);
 
   const [gameMode, setGameMode] = useState<GameMode>('ai');
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
@@ -62,6 +87,7 @@ export default function App() {
   const [trapCount, setTrapCount] = useState<number>(6);
   const [bonusItemsEnabled, setBonusItemsEnabled] = useState<boolean>(true);
 
+  // Board state
   const [board, setBoard] = useState<(Piece | null)[][]>(createInitialBoard());
   const [currentTurn, setCurrentTurn] = useState<PieceColor>('white');
   const [turnNumber, setTurnNumber] = useState<number>(1);
@@ -71,18 +97,22 @@ export default function App() {
   const [capturedWhite, setCapturedWhite] = useState<Piece[]>([]);
   const [capturedBlack, setCapturedBlack] = useState<Piece[]>([]);
 
+  // Traps & Items
   const [traps, setTraps] = useState<Trap[]>([]);
   const [bonusItems, setBonusItems] = useState<BonusItem[]>([]);
 
+  // Game Status
   const [isCheck, setIsCheck] = useState<boolean>(false);
   const [isCheckmate, setIsCheckmate] = useState<boolean>(false);
   const [isStalemate, setIsStalemate] = useState<boolean>(false);
   const [winner, setWinner] = useState<PieceColor | 'draw' | null>(null);
 
+  // AI & Multiplayer
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
   const [myColor, setMyColor] = useState<PieceColor>('white');
   const [isMultiplayerConnected, setIsMultiplayerConnected] = useState<boolean>(false);
 
+  // Cameras & Visuals
   const [activeCameraView, setActiveCameraView] = useState<'iso' | 'white' | 'black' | 'top'>('iso');
   const [isFlyInActive, setIsFlyInActive] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<FloatingNotification[]>([]);
@@ -91,6 +121,7 @@ export default function App() {
   const [isMusicOn, setIsMusicOn] = useState<boolean>(soundEngine.isMusicOn());
   const [isVoiceOn, setIsVoiceOn] = useState<boolean>(voiceEngine.isEnabled());
 
+  // Updates & Modals
   const [releaseInfo, setReleaseInfo] = useState<AppReleaseInfo | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
@@ -142,12 +173,55 @@ export default function App() {
   }, []);
 
   const startNewGame = useCallback(
-    (mode: GameMode, diff: AIDifficulty, th: BoardTheme) => {
+    (
+      mode: GameMode,
+      diff: AIDifficulty,
+      th: BoardTheme,
+      style?: GameStyle,
+      bfMapId?: BattlefieldMapId
+    ) => {
+      const chosenStyle = style || gameStyle;
+      const chosenMapId = bfMapId || battlefieldMapId;
+      setGameStyle(chosenStyle);
+      setBattlefieldMapId(chosenMapId);
+
       const initialBoard = createInitialBoard();
-      const initialTraps = generateInitialTraps(trapCount);
-      const initialItems: BonusItem[] = bonusItemsEnabled
-        ? [generateBonusItem(initialBoard, [], initialTraps)!].filter(Boolean)
-        : [];
+      let initialTraps: Trap[] = [];
+      let initialItems: BonusItem[] = [];
+
+      if (chosenStyle === 'battlefield') {
+        const newBfState = createInitialBattlefieldState(chosenMapId);
+        setBattlefieldState(newBfState);
+
+        const mapConfig = BATTLEFIELD_MAPS[chosenMapId];
+        // Spawn upgrades on defined squares
+        if (mapConfig.upgrades && mapConfig.upgrades.squares) {
+          const itemTypes: ItemType[] = [
+            'rocket_boots',
+            'mega_hammer',
+            'bubble_shield',
+            'magic_mirror',
+            'speed_potion',
+            'lightning_rod',
+            'magnet',
+          ];
+          initialItems = mapConfig.upgrades.squares.map((sq, i) => {
+            const coords = squareToCoords(sq);
+            return {
+              id: `bf-item-${i}`,
+              row: coords.row,
+              col: coords.col,
+              type: itemTypes[i % itemTypes.length],
+            };
+          });
+        }
+      } else {
+        setBattlefieldState(null);
+        initialTraps = generateInitialTraps(trapCount);
+        initialItems = bonusItemsEnabled
+          ? [generateBonusItem(initialBoard, [], initialTraps)!].filter(Boolean)
+          : [];
+      }
 
       setBoard(initialBoard);
       setCurrentTurn('white');
@@ -165,6 +239,7 @@ export default function App() {
       setWinner(null);
       setIsAiThinking(false);
       isAiThinkingRef.current = false;
+      setActiveSpecialTargeting(null);
       setGameMode(mode);
       setAiDifficulty(diff);
       setTheme(th);
@@ -176,7 +251,7 @@ export default function App() {
       soundEngine.playSelect();
       soundEngine.playFlyIn();
     },
-    [trapCount, bonusItemsEnabled]
+    [gameStyle, battlefieldMapId, trapCount, bonusItemsEnabled]
   );
 
   const saveHistory = useCallback(() => {
@@ -188,8 +263,9 @@ export default function App() {
       bonusItems: [...bonusItems],
       capturedWhite: [...capturedWhite],
       capturedBlack: [...capturedBlack],
+      battlefieldState: battlefieldState ? { ...battlefieldState } : null,
     });
-  }, [board, currentTurn, turnNumber, traps, bonusItems, capturedWhite, capturedBlack]);
+  }, [board, currentTurn, turnNumber, traps, bonusItems, capturedWhite, capturedBlack, battlefieldState]);
 
   const executeMove = useCallback(
     (
@@ -239,7 +315,10 @@ export default function App() {
           triggerCharacterQuote(mirrorQuote, false);
 
           const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
-          const status = evaluateGameStatus(newBoard, nextTurn);
+          const status =
+            gameStyle === 'battlefield' && battlefieldState
+              ? evaluateBattlefieldGameStatus(newBoard, nextTurn, battlefieldState)
+              : evaluateGameStatus(newBoard, nextTurn);
           setIsCheck(status.isCheck);
           setIsCheckmate(status.isCheckmate);
           setIsStalemate(status.isStalemate);
@@ -248,11 +327,10 @@ export default function App() {
           moveSeqRef.current++;
           const moveObj: Move = {
             from,
-            to: from,
+            to,
             piece: movingPiece,
             captured: movingPiece,
             effect: 'mirror_reflect',
-            attackTarget: to,
             seq: moveSeqRef.current,
           };
 
@@ -262,80 +340,61 @@ export default function App() {
           setSelectedSquare(null);
           setLegalMoves([]);
           setLastMove(moveObj);
-
-          if (gameMode === 'multiplayer' && !isRemote) {
-            peerMultiplayer.sendMessage({ type: 'MOVE', move: moveObj, nextTurn });
-          }
           return;
         }
 
         if (capturedPiece.shield) {
-          soundEngine.playShield();
+          soundEngine.playShieldBounce();
           capturedPiece.shield = false;
           moveEffect = 'shield_block';
 
           addNotification({
             id: `shield-${Date.now()}`,
-            text: 'Bublinový štít odrazil útok!',
+            text: 'Bublinový štít prasknul a odrazil útok!',
             emoji: '🛡️',
             color: '#38bdf8',
           });
 
-          const shieldQuote = getRandomQuote(capturedPiece.type, 'shield_block');
+          const shieldQuote = getRandomQuote(capturedPiece.type, 'shield_bounce');
           triggerCharacterQuote(shieldQuote, false);
 
           const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
-          const status = evaluateGameStatus(newBoard, nextTurn);
-          setIsCheck(status.isCheck);
-          setIsCheckmate(status.isCheckmate);
-          setIsStalemate(status.isStalemate);
-
           moveSeqRef.current++;
           const moveObj: Move = {
             from,
             to: from,
             piece: movingPiece,
-            captured: null,
-            effect: 'shield_block',
             attackTarget: to,
+            effect: 'shield_block',
             seq: moveSeqRef.current,
           };
 
-          setBoard(newBoard);
-          setCurrentTurn(nextTurn);
-          setTurnNumber((prev) => prev + 1);
           setSelectedSquare(null);
           setLegalMoves([]);
+          setCurrentTurn(nextTurn);
+          setTurnNumber((prev) => prev + 1);
           setLastMove(moveObj);
-
-          if (gameMode === 'multiplayer' && !isRemote) {
-            peerMultiplayer.sendMessage({ type: 'MOVE', move: moveObj, nextTurn });
-          }
           return;
         }
-      }
 
-      // Handle normal capture
-      if (capturedPiece) {
+        // Standard capture
+        soundEngine.playCapture();
         if (capturedPiece.color === 'white') {
-          setCapturedWhite((prev) => [...prev, capturedPiece!]);
+          setCapturedWhite((prev) => [...prev, capturedPiece]);
         } else {
-          setCapturedBlack((prev) => [...prev, capturedPiece!]);
+          setCapturedBlack((prev) => [...prev, capturedPiece]);
         }
-        const capQuote = getRandomQuote(movingPiece.type, 'capture');
-        triggerCharacterQuote(capQuote, false);
+
+        const captureQuote = getRandomQuote(movingPiece.type, 'capture');
+        triggerCharacterQuote(captureQuote, false);
       } else {
-        if (Math.random() < 0.6) {
-          const moveQuote = getRandomQuote(movingPiece.type, 'move');
-          triggerCharacterQuote(moveQuote, false);
-        }
+        soundEngine.playMove();
       }
 
-      // 2. Consume one-time items on move
+      // 2. Special Attack Item Effects
       if (usedItem === 'mega_hammer') {
+        soundEngine.playHammer();
         moveEffect = 'hammer_smash';
-        soundEngine.playHammerSmash();
-
         for (let dr = -1; dr <= 1; dr++) {
           for (let dc = -1; dc <= 1; dc++) {
             if (dr === 0 && dc === 0) continue;
@@ -343,56 +402,56 @@ export default function App() {
             const nc = to.col + dc;
             if (isInsideBoard(nr, nc)) {
               const enemy = newBoard[nr][nc];
-              if (enemy && enemy.color !== movingPiece.color && enemy.type !== 'king') {
+              if (enemy && enemy.color !== movingPiece.color) {
                 enemy.isDizzy = true;
-                enemy.frozenTurns = 1;
                 stunnedSquares.push({ row: nr, col: nc });
               }
             }
           }
         }
-
         addNotification({
           id: `hammer-${Date.now()}`,
-          text: 'Mega Kladivo! Tlaková vlna omráčila okolní nepřátele!',
+          text: 'Mega kladivo omráčilo okolní figurky!',
           emoji: '🔨',
-          color: '#f59e0b',
+          color: '#f97316',
         });
       } else if (usedItem === 'rocket_boots') {
-        moveEffect = 'rocket_jump';
         soundEngine.playRocket();
+        moveEffect = 'rocket_jump';
         addNotification({
           id: `rocket-${Date.now()}`,
-          text: 'Raketový skok úspěšně dokončen!',
+          text: 'Raketový let vzduchem!',
           emoji: '🚀',
-          color: '#ef4444',
+          color: '#ec4899',
         });
       } else if (usedItem === 'lightning_rod') {
+        soundEngine.playThunder();
         moveEffect = 'lightning_strike';
-        soundEngine.playSpeedBoost();
         addNotification({
           id: `lightning-${Date.now()}`,
-          text: 'Bleskový útok! Projel celou linii!',
+          text: 'Bleskový úder vyřadil cíl!',
           emoji: '⚡',
           color: '#eab308',
         });
       }
 
-      newBoard[from.row][from.col] = null;
+      // Move piece to target square
       const pieceCopy: Piece = {
         ...movingPiece,
         row: to.row,
         col: to.col,
         hasMoved: true,
         equippedItem: null,
-        isSlimeStuck: false, // moving clears glue
+        isSlimeStuck: false,
       };
+
       newBoard[to.row][to.col] = pieceCopy;
+      newBoard[from.row][from.col] = null;
 
       let finalRow = to.row;
       let finalCol = to.col;
 
-      // 3. Trap Check
+      // 3. Trap Trigger Check
       const activeTrapIdx = traps.findIndex((t) => t.row === to.row && t.col === to.col);
       if (activeTrapIdx !== -1) {
         const trap = traps[activeTrapIdx];
@@ -452,26 +511,27 @@ export default function App() {
           extraTurnGranted = true;
         } else if (item.type === 'magnet') {
           soundEngine.playTeleport();
-          // Pull other bonus items closer if any
           bonusItems.forEach((b) => {
             if (b !== item) {
               b.row = Math.max(0, Math.min(7, Math.round((b.row + finalRow) / 2)));
               b.col = Math.max(0, Math.min(7, Math.round((b.col + finalCol) / 2)));
             }
           });
-          currentP.equippedItem = 'speed_potion'; // Grants quick boost
+          currentP.equippedItem = 'speed_potion';
         } else {
           currentP.equippedItem = item.type;
         }
 
         setBonusItems((prev) => prev.filter((_, i) => i !== activeItemIdx));
         const info = ITEM_CONFIG[item.type];
-        addNotification({
-          id: `item-${Date.now()}`,
-          text: `Získán bonus: ${info.name}! (${info.durationText})`,
-          emoji: info.emoji,
-          color: info.color,
-        });
+        if (info) {
+          addNotification({
+            id: `item-${Date.now()}`,
+            text: `Získán bonus: ${info.name}! (${info.durationText})`,
+            emoji: info.emoji,
+            color: info.color,
+          });
+        }
 
         const itemQuote = getRandomQuote(currentP.type, 'item', { itemType: item.type });
         triggerCharacterQuote(itemQuote, false);
@@ -494,57 +554,97 @@ export default function App() {
         }
       }
 
-      // 6. Spawn Bonus Items
-      if (bonusItemsEnabled && Math.random() < 0.28 && bonusItems.length < 3) {
+      // 6. Spawn Bonus Items (in classic mode)
+      if (gameStyle === 'classic' && bonusItemsEnabled && Math.random() < 0.28 && bonusItems.length < 3) {
         const newItem = generateBonusItem(newBoard, bonusItems, traps);
         if (newItem) {
           setBonusItems((prev) => [...prev, newItem]);
         }
       }
 
-      // Decrement frozen turns for pieces of current player
+      // Decrement frozen turns
       for (let r = 0; r < 8; r++) {
         for (let c = 0; c < 8; c++) {
           const p = newBoard[r][c];
           if (p && p.color === currentTurn && p !== pieceCopy) {
-            if (p.frozenTurns && p.frozenTurns > 0) {
-              p.frozenTurns--;
-            }
-            if (p.isDizzy) {
-              p.isDizzy = false;
-            }
+            if (p.frozenTurns && p.frozenTurns > 0) p.frozenTurns--;
+            if (p.isDizzy) p.isDizzy = false;
           }
         }
       }
 
-      // 7. Next Turn Calculation
+      // 7. Next Turn & Battlefield Evolution
       const nextTurn: PieceColor = extraTurnGranted
         ? currentTurn
         : currentTurn === 'white'
         ? 'black'
         : 'white';
 
-      const status = evaluateGameStatus(newBoard, nextTurn);
-      setIsCheck(status.isCheck);
-      setIsCheckmate(status.isCheckmate);
-      setIsStalemate(status.isStalemate);
+      if (gameStyle === 'battlefield' && battlefieldState) {
+        const turnAdv = advanceBattlefieldTurn(battlefieldState, pieceCopy, finalRow, finalCol);
+        setBattlefieldState(turnAdv.nextState);
 
-      if (status.isCheck) {
-        soundEngine.playCheck();
-        addNotification({
-          id: `check-${Date.now()}`,
-          text: 'ŠACH! Král je v ohrožení!',
-          emoji: '⚠️',
-          color: '#ef4444',
-        });
-        const kingQuote = getRandomQuote('king', 'check');
-        triggerCharacterQuote(kingQuote, false);
-      }
+        if (turnAdv.spawnUpgrades && turnAdv.spawnUpgrades.length > 0) {
+          const newItems: BonusItem[] = turnAdv.spawnUpgrades.map((c, idx) => ({
+            id: `drop-${Date.now()}-${idx}`,
+            row: c.row,
+            col: c.col,
+            type: 'speed_potion',
+          }));
+          setBonusItems((prev) => [...prev, ...newItems]);
+        }
 
-      if (status.isCheckmate) {
-        setWinner(currentTurn);
-      } else if (status.isStalemate) {
-        setWinner('draw');
+        if (turnAdv.tip) {
+          addNotification({
+            id: `tip-${Date.now()}`,
+            text: turnAdv.tip,
+            emoji: '📢',
+            color: '#38bdf8',
+            duration: 3500,
+          });
+        }
+
+        const status = evaluateBattlefieldGameStatus(newBoard, nextTurn, turnAdv.nextState);
+        setIsCheck(status.isCheck);
+        setIsCheckmate(status.isCheckmate);
+        setIsStalemate(status.isStalemate);
+        if (status.isCheck) {
+          soundEngine.playCheck();
+          addNotification({
+            id: `check-${Date.now()}`,
+            text: 'ŠACH! Král je v ohrožení!',
+            emoji: '⚠️',
+            color: '#ef4444',
+          });
+          const kingQuote = getRandomQuote('king', 'check');
+          triggerCharacterQuote(kingQuote, false);
+        }
+        if (status.winner) {
+          setWinner(status.winner);
+        }
+      } else {
+        const status = evaluateGameStatus(newBoard, nextTurn);
+        setIsCheck(status.isCheck);
+        setIsCheckmate(status.isCheckmate);
+        setIsStalemate(status.isStalemate);
+
+        if (status.isCheck) {
+          soundEngine.playCheck();
+          addNotification({
+            id: `check-${Date.now()}`,
+            text: 'ŠACH! Král je v ohrožení!',
+            emoji: '⚠️',
+            color: '#ef4444',
+          });
+          const kingQuote = getRandomQuote('king', 'check');
+          triggerCharacterQuote(kingQuote, false);
+        }
+
+        if (status.isCheckmate) {
+          setWinner(currentTurn);
+        } else if (status.isStalemate) {
+          setWinner('draw');
+        }
       }
 
       moveSeqRef.current++;
@@ -584,14 +684,16 @@ export default function App() {
       traps,
       bonusItems,
       bonusItemsEnabled,
+      gameStyle,
+      battlefieldState,
+      gameMode,
       saveHistory,
       addNotification,
       triggerCharacterQuote,
-      gameMode,
     ]
   );
 
-  // AI Turn Trigger
+  // AI Turn Execution
   useEffect(() => {
     if (
       screen === 'playing' &&
@@ -605,12 +707,46 @@ export default function App() {
 
       const timer = window.setTimeout(() => {
         try {
-          const aiMove = selectAIMove(board, 'black', traps, bonusItems, aiDifficulty);
-          if (aiMove) {
-            executeMove(
-              { row: aiMove.piece.row, col: aiMove.piece.col },
-              aiMove.move
+          if (gameStyle === 'battlefield' && battlefieldState) {
+            // In Obléhání: Black gate defense check
+            if (
+              battlefieldState.mapId === 'oblehani' &&
+              !battlefieldState.gateClosed &&
+              Math.random() < 0.3
+            ) {
+              const gates = ['c6', 'f6'];
+              for (const g of gates) {
+                const c = squareToCoords(g);
+                if (board[c.row][c.col] === null && battlefieldState.grid[c.row][c.col] === 'B') {
+                  const nextGrid = battlefieldState.grid.map((r) => [...r]);
+                  nextGrid[c.row][c.col] = '#';
+                  setBattlefieldState((prev) => (prev ? { ...prev, grid: nextGrid, gateClosed: true } : null));
+                  addNotification({
+                    id: `ai-gate-${Date.now()}`,
+                    text: `AI (obránce) uzavřela bránu ${g}!`,
+                    emoji: '🚪',
+                    color: '#06b6d4',
+                  });
+                  break;
+                }
+              }
+            }
+
+            const aiMove = selectBattlefieldAIMove(
+              board,
+              'black',
+              battlefieldState,
+              bonusItems,
+              aiDifficulty
             );
+            if (aiMove) {
+              executeMove({ row: aiMove.piece.row, col: aiMove.piece.col }, aiMove.move);
+            }
+          } else {
+            const aiMove = selectAIMove(board, 'black', traps, bonusItems, aiDifficulty);
+            if (aiMove) {
+              executeMove({ row: aiMove.piece.row, col: aiMove.piece.col }, aiMove.move);
+            }
           }
         } finally {
           isAiThinkingRef.current = false;
@@ -633,10 +769,13 @@ export default function App() {
     traps,
     bonusItems,
     aiDifficulty,
+    gameStyle,
+    battlefieldState,
     executeMove,
+    addNotification,
   ]);
 
-  // Handle Square Selection and Clicking
+  // Handle Square Selection & Special Targeting
   const handleSquareClick = useCallback(
     (row: number, col: number) => {
       if (winner || isAiThinking) return;
@@ -645,6 +784,81 @@ export default function App() {
         return;
       }
 
+      // Special action: Catapult Targeting (White)
+      if (activeSpecialTargeting === 'katapult') {
+        if (battlefieldState && battlefieldState.grid[row]?.[col] === '#') {
+          soundEngine.playExplosion();
+          setBattlefieldState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  catapultPending: { row, col, delay: 2 },
+                  catapultCharge: 0,
+                }
+              : null
+          );
+          setActiveSpecialTargeting(null);
+          addNotification({
+            id: `catapult-shot-${Date.now()}`,
+            text: `🎯 Katapult odpálen! Střela dopadne na hradbu za 2 půltahy.`,
+            emoji: '💥',
+            color: '#ef4444',
+          });
+          const quote = getRandomQuote('rook', 'special');
+          triggerCharacterQuote(quote, true);
+        } else {
+          addNotification({
+            id: `catapult-err-${Date.now()}`,
+            text: `Cíl musí být pole Hradby (#)!`,
+            emoji: '⚠️',
+            color: '#f59e0b',
+          });
+        }
+        return;
+      }
+
+      // Special action: Gate Close Targeting (Black)
+      if (activeSpecialTargeting === 'zavreni_brany') {
+        const sq = coordsToSquare(row, col);
+        if (
+          battlefieldState &&
+          ['c6', 'f6'].includes(sq) &&
+          battlefieldState.grid[row]?.[col] === 'B' &&
+          board[row][col] === null
+        ) {
+          soundEngine.playVictory();
+          const nextGrid = battlefieldState.grid.map((r) => [...r]);
+          nextGrid[row][col] = '#';
+          setBattlefieldState((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  grid: nextGrid,
+                  gateClosed: true,
+                }
+              : null
+          );
+          setActiveSpecialTargeting(null);
+          addNotification({
+            id: `gate-closed-${Date.now()}`,
+            text: `🚪 Brána na ${sq} byla hermeticky uzavřena!`,
+            emoji: '🛡️',
+            color: '#06b6d4',
+          });
+          const quote = getRandomQuote('king', 'special');
+          triggerCharacterQuote(quote, true);
+        } else {
+          addNotification({
+            id: `gate-err-${Date.now()}`,
+            text: `Vyber neobsazenou bránu (c6 nebo f6)!`,
+            emoji: '⚠️',
+            color: '#f59e0b',
+          });
+        }
+        return;
+      }
+
+      // Standard move logic
       if (selectedSquare) {
         const isLegal = legalMoves.some((m) => m.row === row && m.col === col);
         if (isLegal) {
@@ -655,7 +869,10 @@ export default function App() {
         const clickedPiece = board[row][col];
         if (clickedPiece && clickedPiece.color === currentTurn) {
           setSelectedSquare({ row, col });
-          const moves = getLegalMoves(board, clickedPiece);
+          const moves =
+            gameStyle === 'battlefield' && battlefieldState
+              ? getBattlefieldLegalMoves(board, clickedPiece, battlefieldState)
+              : getLegalMoves(board, clickedPiece);
           setLegalMoves(moves);
           soundEngine.playSelect();
           return;
@@ -669,7 +886,10 @@ export default function App() {
       const piece = board[row][col];
       if (piece && piece.color === currentTurn) {
         setSelectedSquare({ row, col });
-        const moves = getLegalMoves(board, piece);
+        const moves =
+          gameStyle === 'battlefield' && battlefieldState
+            ? getBattlefieldLegalMoves(board, piece, battlefieldState)
+            : getLegalMoves(board, piece);
         setLegalMoves(moves);
         soundEngine.playSelect();
 
@@ -685,11 +905,15 @@ export default function App() {
       gameMode,
       currentTurn,
       myColor,
+      activeSpecialTargeting,
+      battlefieldState,
       selectedSquare,
       legalMoves,
       board,
+      gameStyle,
       executeMove,
       triggerCharacterQuote,
+      addNotification,
     ]
   );
 
@@ -713,6 +937,9 @@ export default function App() {
       setBonusItems(targetEntry.bonusItems);
       setCapturedWhite(targetEntry.capturedWhite);
       setCapturedBlack(targetEntry.capturedBlack);
+      if (targetEntry.battlefieldState) {
+        setBattlefieldState(targetEntry.battlefieldState);
+      }
       setSelectedSquare(null);
       setLegalMoves([]);
       setLastMove(null);
@@ -721,6 +948,7 @@ export default function App() {
       setIsCheckmate(false);
       setIsAiThinking(false);
       isAiThinkingRef.current = false;
+      setActiveSpecialTargeting(null);
       soundEngine.playSelect();
     }
   }, [gameMode, currentTurn]);
@@ -749,91 +977,55 @@ export default function App() {
   const handleHostRoom = useCallback(async () => {
     return peerMultiplayer.init({
       onConnected: () => {
-        setMyColor('white');
-        setGameMode('multiplayer');
-      },
-      onOpponentJoined: () => {
         setIsMultiplayerConnected(true);
-        setIsMultiplayerOpen(false);
-        startNewGame('multiplayer', 'medium', theme);
-        addNotification({
-          id: `opp-joined-${Date.now()}`,
-          text: 'Protihráč se připojil! Bitva začíná!',
-          emoji: '🎉',
-          color: '#10b981',
-        });
+        setMyColor('white');
+        startNewGame('multiplayer', aiDifficulty, theme);
       },
       onMessage: (msg: PeerMessage) => {
         if (msg.type === 'MOVE') {
           executeMove(msg.move.from, msg.move.to, true);
         } else if (msg.type === 'EMOTE') {
           addNotification({
-            id: `remote-emote-${Date.now()}`,
+            id: `emote-${Date.now()}`,
             text: msg.text,
             emoji: msg.emoji,
-            color: '#f43f5e',
+            color: '#38bdf8',
           });
         }
       },
-      onDisconnected: () => {
-        setIsMultiplayerConnected(false);
-        addNotification({
-          id: `disc-${Date.now()}`,
-          text: 'Protihráč se odpojil.',
-          emoji: '🔌',
-          color: '#ef4444',
-        });
-      },
       onError: (err) => {
-        console.error(err);
+        console.error('Peer error:', err);
       },
     });
-  }, [theme, startNewGame, addNotification, executeMove]);
+  }, [aiDifficulty, theme, startNewGame, executeMove, addNotification]);
 
   const handleJoinRoom = useCallback(
-    async (code: string) => {
-      return peerMultiplayer.joinRoom(code, {
+    async (hostId: string) => {
+      await peerMultiplayer.init({
         onConnected: () => {
-          setMyColor('black');
-          setGameMode('multiplayer');
           setIsMultiplayerConnected(true);
-          startNewGame('multiplayer', 'medium', theme);
-          setActiveCameraView('black');
-          addNotification({
-            id: `joined-ok-${Date.now()}`,
-            text: 'Připojeno k hostiteli! Hraješ za Černé.',
-            emoji: '⚔️',
-            color: '#10b981',
-          });
+          setMyColor('black');
+          startNewGame('multiplayer', aiDifficulty, theme);
         },
-        onOpponentJoined: () => {},
         onMessage: (msg: PeerMessage) => {
           if (msg.type === 'MOVE') {
             executeMove(msg.move.from, msg.move.to, true);
           } else if (msg.type === 'EMOTE') {
             addNotification({
-              id: `remote-emote-${Date.now()}`,
+              id: `emote-${Date.now()}`,
               text: msg.text,
               emoji: msg.emoji,
-              color: '#f43f5e',
+              color: '#38bdf8',
             });
           }
         },
-        onDisconnected: () => {
-          setIsMultiplayerConnected(false);
-          addNotification({
-            id: `disc-${Date.now()}`,
-            text: 'Hostitel ukončil spojení.',
-            emoji: '🔌',
-            color: '#ef4444',
-          });
-        },
         onError: (err) => {
-          console.error(err);
+          console.error('Peer join error:', err);
         },
       });
+      peerMultiplayer.connectToHost(hostId);
     },
-    [theme, startNewGame, addNotification, executeMove]
+    [aiDifficulty, theme, startNewGame, executeMove, addNotification]
   );
 
   return (
@@ -852,6 +1044,9 @@ export default function App() {
         winner={winner}
         activeCameraView={activeCameraView}
         isFlyInActive={isFlyInActive}
+        gameStyle={gameStyle}
+        battlefieldState={battlefieldState}
+        activeSpecialTargeting={activeSpecialTargeting}
         onFlyInFinished={() => setIsFlyInActive(false)}
         onSquareClick={handleSquareClick}
       />
@@ -860,7 +1055,9 @@ export default function App() {
       {isFlyInActive && screen === 'playing' && (
         <div className="fixed inset-0 z-40 pointer-events-none flex flex-col items-center justify-center animate-in zoom-in-75 fade-in duration-300">
           <div className="rotate-[-2deg] bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-['Bangers'] text-4xl sm:text-6xl tracking-wider px-8 py-3.5 rounded-3xl border-3 border-black shadow-[0_15px_40px_rgba(245,158,11,0.5)]">
-            ⚔️ BITVA ZAČÍNÁ! ⚔️
+            {gameStyle === 'battlefield'
+              ? `⚔️ BOJIŠTĚ: ${BATTLEFIELD_MAPS[battlefieldMapId]?.name.toUpperCase()}! ⚔️`
+              : '⚔️ BITVA ZAČÍNÁ! ⚔️'}
           </div>
           <span className="text-white font-bold text-xs sm:text-sm uppercase bg-black/80 px-4 py-1.5 rounded-full mt-3 border border-white/20 animate-pulse">
             Přílet na šachovnici... (Klepnutím přeskočíte)
@@ -872,7 +1069,11 @@ export default function App() {
       {screen === 'title' && (
         <TitleScreen
           onStartGame={startNewGame}
-          onOpenMultiplayer={() => setIsMultiplayerOpen(true)}
+          onOpenMultiplayer={(style, mapId) => {
+            setGameStyle(style);
+            if (mapId) setBattlefieldMapId(mapId);
+            setIsMultiplayerOpen(true);
+          }}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenUpdates={() => setIsUpdateModalOpen(true)}
           hasUpdateAvailable={releaseInfo?.hasUpdate}
@@ -896,6 +1097,9 @@ export default function App() {
           isVoiceOn={isVoiceOn}
           isAiThinking={isAiThinking}
           myColor={myColor}
+          gameStyle={gameStyle}
+          battlefieldState={battlefieldState}
+          activeSpecialTargeting={activeSpecialTargeting}
           onCameraChange={(view) => setActiveCameraView(view)}
           onUndoMove={handleUndoMove}
           onToggleSound={() => {
@@ -917,17 +1121,28 @@ export default function App() {
             soundEngine.playSelect();
             setScreen('title');
           }}
-          onRestartGame={() => startNewGame(gameMode, aiDifficulty, theme)}
+          onRestartGame={() => startNewGame(gameMode, aiDifficulty, theme, gameStyle, battlefieldMapId)}
           onDismissQuote={() => setCurrentQuote(null)}
           onChangeGameMode={(newMode) => {
             if (newMode === 'multiplayer') {
               setIsMultiplayerOpen(true);
             } else {
-              startNewGame(newMode, aiDifficulty, theme);
+              startNewGame(newMode, aiDifficulty, theme, gameStyle, battlefieldMapId);
             }
           }}
           onOpenUpdates={() => setIsUpdateModalOpen(true)}
+          onOpenBattlefieldRules={() => setIsBattlefieldRuleModalOpen(true)}
+          onTriggerSpecialAction={(actionId) => setActiveSpecialTargeting(actionId)}
+          onCancelSpecialTargeting={() => setActiveSpecialTargeting(null)}
           hasUpdateAvailable={releaseInfo?.hasUpdate}
+        />
+      )}
+
+      {/* Battlefield Rule Modal */}
+      {isBattlefieldRuleModalOpen && battlefieldState && (
+        <BattlefieldRuleModal
+          state={battlefieldState}
+          onClose={() => setIsBattlefieldRuleModalOpen(false)}
         />
       )}
 
@@ -936,7 +1151,7 @@ export default function App() {
         winner={winner}
         isCheckmate={isCheckmate}
         turnNumber={turnNumber}
-        onRematch={() => startNewGame(gameMode, aiDifficulty, theme)}
+        onRematch={() => startNewGame(gameMode, aiDifficulty, theme, gameStyle, battlefieldMapId)}
         onReturnToTitle={() => {
           setWinner(null);
           setScreen('title');

@@ -1,0 +1,465 @@
+{
+  "version": "1.0.0",
+  "mode": "Bojiště",
+  "boardSize": 8,
+  "globalRules": {
+    "height": {
+      "minHeight": 0,
+      "maxHeight": 2,
+      "maxStepUp": 1,
+      "maxStepDown": 2,
+      "slidingPiecesCanClimbMultiStep": true,
+      "knightIgnoresElevation": true,
+      "pawnMaxCaptureHeightDiff": 0
+    },
+    "specialMoves": {
+      "castlingRequiresUniformHeight": true,
+      "castlingAllowedTerrains": ["plain", "bridge"],
+      "pawnDoubleStepEvaluatedPerStep": true,
+      "enPassantRequiresSameHeight": true
+    },
+    "checkAndImmobilization": {
+      "checkRespectsTerrainAndHeight": true,
+      "slidingCheckBlockedByStoppingTerrain": true,
+      "immobilizedPieceCannotMoveNextOwnTurn": true,
+      "immobilizedPieceGivesNoCheck": true,
+      "floodedPieceGivesNoCheck": true,
+      "kingCannotEnterWarnedFloodToEscapeCheck": true
+    },
+    "events": {
+      "useSharedDeterministicSeed": true,
+      "warningHalfMovesBeforeActivation": 2
+    }
+  },
+  "terrainTypes": {
+    ".": {
+      "id": "plain",
+      "name": "Rovina",
+      "height": 0,
+      "passable": true,
+      "stopsSlidingPieces": false,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "tooltip": "Rovina (výška 0) – standardní pole beze změny."
+    },
+    "1": {
+      "id": "hill",
+      "name": "Kopec / Trosky",
+      "height": 1,
+      "passable": true,
+      "stopsSlidingPieces": false,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "tooltip": "Kopec (výška 1) – figurka je zde chráněná před pěšci z roviny (výška 0)."
+    },
+    "2": {
+      "id": "plateau",
+      "name": "Plošina / Citadela",
+      "height": 2,
+      "passable": true,
+      "stopsSlidingPieces": false,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "tooltip": "Plošina (výška 2) – vystoupit lze jen z výšky 1 (nebo skočit jezdcem), dolů lze seskočit přímo na 0."
+    },
+    "L": {
+      "id": "forest",
+      "name": "Les",
+      "height": 0,
+      "passable": true,
+      "stopsSlidingPieces": true,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "tooltip": "Les (výška 0) – věž, střelec a dáma se při vstupu musí zastavit (nemohou projet ani dávat šach skrz)."
+    },
+    ":": {
+      "id": "ford",
+      "name": "Brod",
+      "height": 0,
+      "passable": true,
+      "stopsSlidingPieces": true,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "floodable": true,
+      "tooltip": "Brod (výška 0) – zastavuje věž, střelce a dámu; při záplavě se mění v neprůchodnou řeku."
+    },
+    "M": {
+      "id": "bridge",
+      "name": "Most",
+      "height": 0,
+      "passable": true,
+      "stopsSlidingPieces": false,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "tooltip": "Most (výška 0) – normální průchozí pole přes řeku."
+    },
+    "~": {
+      "id": "river",
+      "name": "Řeka",
+      "height": null,
+      "passable": false,
+      "stopsSlidingPieces": true,
+      "knightCanJumpOver": true,
+      "knightCanLand": false,
+      "tooltip": "Řeka – neprůchodné pole; jezdec ji může přeskočit, ale nesmí na ni přistát."
+    },
+    "#": {
+      "id": "wall",
+      "name": "Hradba",
+      "height": null,
+      "passable": false,
+      "stopsSlidingPieces": true,
+      "knightCanJumpOver": true,
+      "knightCanLand": false,
+      "destructibleByCatapult": true,
+      "destroyedTerrain": "1",
+      "tooltip": "Hradba – neprůchodná zeď (jezdec ji přeskočí); zásah katapultu ji změní na průchozí Trosky (výška 1)."
+    },
+    "B": {
+      "id": "gate",
+      "name": "Brána",
+      "height": 1,
+      "passable": true,
+      "stopsSlidingPieces": false,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "closableByDefender": true,
+      "closedTerrain": "#",
+      "tooltip": "Brána (výška 1) – průchozí vstup do pevnosti; obránce může volnou bránu jednou za hru zavřít."
+    },
+    "^": {
+      "id": "spike",
+      "name": "Hrot",
+      "height": 0,
+      "passable": true,
+      "stopsSlidingPieces": false,
+      "knightCanJumpOver": true,
+      "knightCanLand": true,
+      "immobilizesNonKingOnStop": true,
+      "immobilizeDurationOwnTurns": 1,
+      "tooltip": "Hrot (výška 0) – figurka (mimo krále), která tu skončí tah, nesmí v příštím tahu hráče táhnout a nedává šach."
+    }
+  },
+  "maps": [
+    {
+      "id": "priroda",
+      "name": "Příroda",
+      "subtitle": "Údolí řeky",
+      "symmetric": true,
+      "initialSetup": "standard",
+      "victoryConditions": {
+        "white": ["checkmate"],
+        "black": ["checkmate"],
+        "maxHalfMoves": null
+      },
+      "layout": [
+        "........",
+        "........",
+        ".1L11L1.",
+        "~*~::~*~",
+        "~*~::~*~",
+        ".1L11L1.",
+        "........",
+        "........"
+      ],
+      "tileOverrides": {
+        "b4": { "baseTerrain": "M", "hasUpgrade": true },
+        "b5": { "baseTerrain": "M", "hasUpgrade": true },
+        "g4": { "baseTerrain": "M", "hasUpgrade": true },
+        "g5": { "baseTerrain": "M", "hasUpgrade": true }
+      },
+      "upgrades": {
+        "squares": ["b4", "b5", "g4", "g5"],
+        "respawnHalfMoves": 10
+      },
+      "events": [
+        {
+          "id": "zaplava",
+          "name": "Záplava",
+          "intervalHalfMoves": 10,
+          "warningHalfMoves": 2,
+          "durationHalfMoves": 2,
+          "targetSquares": ["d4", "e4", "d5", "e5"],
+          "effect": {
+            "temporaryTerrain": "~",
+            "occupyingPieceSurvives": true,
+            "occupyingPieceCanLeave": true,
+            "occupyingPieceGivesCheck": false,
+            "blockEntryAndPassThrough": true
+          }
+        }
+      ],
+      "specialActions": [],
+      "uiRulesPanel": {
+        "icon": "ℹ️",
+        "goalText": "Dej soupeřovu králi mat.",
+        "visibleTerrains": ["1", "L", ":", "M", "~"],
+        "dynamicCounters": [
+          {
+            "id": "flood_timer",
+            "label": "Další záplava brodů za",
+            "unit": "půltahů"
+          }
+        ],
+        "mapSummary": [
+          "Mosty (b4, b5, g4, g5) nesou vylepšení a nezpomalují věže ani dámu.",
+          "Brody (d4, e4, d5, e5) zastavují posuvné figury a každých 10 půltahů se na 2 půltahy zaplaví.",
+          "Pěšec z roviny (0) nemůže sebrat figurku stojící na kopci (1)."
+        ]
+      },
+      "contextualTips": [
+        {
+          "id": "tip_flood_warning",
+          "trigger": "ON_EVENT_WARNING",
+          "eventId": "zaplava",
+          "text": "Pozor: Za 2 půltahy přijde záplava! Brody budou neprůchodné a figurky v nich nebudou dávat šach."
+        },
+        {
+          "id": "tip_flood_active_piece",
+          "trigger": "ON_SELECT_FLOODED_PIECE",
+          "text": "Tato figurka stojí v zaplaveném brodu – neohrožuje okolní pole, ale můžeš s ní z vody normálně odejít."
+        },
+        {
+          "id": "tip_pawn_vs_hill",
+          "trigger": "ON_SELECT_PAWN_BELOW_ENEMY_HILL",
+          "text": "Figurku na kopci (výška 1) nelze sebrat pěšcem z roviny (výška 0). Vystoupej nejprve pěšcem na kopec, nebo použij jinou figuru."
+        },
+        {
+          "id": "tip_bishop_river_crossing",
+          "trigger": "ON_SELECT_BISHOP_NEAR_RIVER",
+          "text": "Střelec nemůže přejít řeku po úzkém mostě – cestu na druhou stranu najdeš přes středové brody (d4, e4, d5, e5)."
+        }
+      ]
+    },
+    {
+      "id": "prusmyk",
+      "name": "Průsmyk",
+      "subtitle": "Boj o plošinu",
+      "symmetric": true,
+      "initialSetup": "standard",
+      "victoryConditions": {
+        "white": ["checkmate"],
+        "black": ["checkmate"],
+        "maxHalfMoves": null
+      },
+      "layout": [
+        "........",
+        "........",
+        ".L1^^1L.",
+        "*.1221.*",
+        "*.1221.*",
+        ".L1^^1L.",
+        "........",
+        "........"
+      ],
+      "tileOverrides": {
+        "a4": { "baseTerrain": ".", "hasUpgrade": true },
+        "a5": { "baseTerrain": ".", "hasUpgrade": true },
+        "h4": { "baseTerrain": ".", "hasUpgrade": true },
+        "h5": { "baseTerrain": ".", "hasUpgrade": true }
+      },
+      "upgrades": {
+        "squares": ["a4", "a5", "h4", "h5"],
+        "respawnHalfMoves": 10
+      },
+      "events": [
+        {
+          "id": "past",
+          "name": "Past na rampách",
+          "intervalHalfMoves": 8,
+          "warningHalfMoves": 2,
+          "durationHalfMoves": 2,
+          "targetSquares": ["c4", "c5", "f4", "f5"],
+          "effect": {
+            "temporaryModifier": "spike",
+            "immobilizesOccupyingAndEnteringNonKing": true,
+            "immobilizedPieceGivesCheck": false
+          }
+        }
+      ],
+      "specialActions": [],
+      "uiRulesPanel": {
+        "icon": "ℹ️",
+        "goalText": "Dej soupeřovu králi mat.",
+        "visibleTerrains": ["1", "2", "L", "^"],
+        "dynamicCounters": [
+          {
+            "id": "trap_timer",
+            "label": "Sepnutí pastí na rampách za",
+            "unit": "půltahů"
+          }
+        ],
+        "mapSummary": [
+          "Na Plošinu (výška 2) lze vystoupat jen přes boční Kopce (výška 1) na sloupcích c a f, případně skočit jezdcem.",
+          "Z Plošiny (výška 2) lze seskočit přímo dolů na výšku 0.",
+          "Pole s Hrotem (^) znehybní figurku (mimo krále) v tvém příštím tahu – po tu dobu nedává šach."
+        ]
+      },
+      "contextualTips": [
+        {
+          "id": "tip_cliff_blocked",
+          "trigger": "ON_SELECT_PIECE_FACING_CLIFF_UP",
+          "text": "Na Plošinu (výška 2) nelze z roviny (výška 0) přímo vystoupat – využij boční rampy (sloupce c, f) nebo skoč jezdcem."
+        },
+        {
+          "id": "tip_spike_immobilized",
+          "trigger": "ON_PIECE_ENTER_SPIKE",
+          "text": "Tato figurka skončila tah na Hrotu – v tvém příštím tahu s ní nelze pohnout a do té doby nedává šach."
+        },
+        {
+          "id": "tip_trap_warning",
+          "trigger": "ON_EVENT_WARNING",
+          "eventId": "past",
+          "text": "Za 2 půltahy sklapne past na bočních rampách (c4, c5, f4, f5)! Posuň figury výš na plošinu nebo do bezpečí."
+        }
+      ]
+    },
+    {
+      "id": "oblehani",
+      "name": "Obléhání",
+      "subtitle": "Útok na pevnost",
+      "symmetric": false,
+      "initialSetup": "standard",
+      "victoryConditions": {
+        "white": ["checkmate_before_limit"],
+        "black": ["checkmate", "survive_half_move_limit", "stalemate"],
+        "maxHalfMoves": 60
+      },
+      "layout": [
+        "1..22..1",
+        "11111111",
+        "##B##B##",
+        ".^....^.",
+        "..L..L..",
+        ".*.11.*.",
+        "........",
+        "........"
+      ],
+      "tileOverrides": {
+        "b3": { "baseTerrain": ".", "hasUpgrade": true },
+        "g3": { "baseTerrain": ".", "hasUpgrade": true }
+      },
+      "upgrades": {
+        "squares": ["b3", "g3"],
+        "respawnHalfMoves": 10
+      },
+      "events": [
+        {
+          "id": "zasoby",
+          "name": "Zásoby",
+          "intervalHalfMoves": 10,
+          "warningHalfMoves": 2,
+          "durationHalfMoves": null,
+          "alternatingTargetPools": [
+            ["c4", "f4"],
+            ["d5", "e5"]
+          ],
+          "effect": {
+            "spawnUpgradeOnSquares": true
+          }
+        }
+      ],
+      "specialActions": [
+        {
+          "id": "katapult",
+          "name": "Katapult",
+          "side": "white",
+          "firstReadyHalfMove": 10,
+          "cooldownHalfMoves": 12,
+          "timing": "END_OF_OWN_TURN",
+          "validTargets": {
+            "terrain": "#"
+          },
+          "delayHalfMoves": 2,
+          "effect": {
+            "replaceTerrainPermanently": "1"
+          }
+        },
+        {
+          "id": "zavreni_brany",
+          "name": "Zavření brány",
+          "side": "black",
+          "usesPerGame": 1,
+          "timing": "START_OF_OWN_TURN_FREE_ACTION",
+          "validTargets": {
+            "squares": ["c6", "f6"],
+            "terrain": "B",
+            "mustBeUnoccupied": true
+          },
+          "delayHalfMoves": 0,
+          "effect": {
+            "replaceTerrainPermanently": "#"
+          }
+        }
+      ],
+      "uiRulesPanel": {
+        "icon": "ℹ️",
+        "goalText": "Bílý (útočník) musí dát mat do 60 půltahů (30 tahů). Černý (obránce) vyhrává matem nebo udržením pevnosti po dobu 60 půltahů.",
+        "visibleTerrains": ["#", "B", "1", "2", "^", "L"],
+        "dynamicCounters": [
+          {
+            "id": "siege_remaining_half_moves",
+            "label": "Do konce obléhání zbývá",
+            "unit": "půltahů"
+          },
+          {
+            "id": "catapult_cooldown",
+            "label": "Nabití katapultu (bílý)",
+            "unit": "půltahů"
+          },
+          {
+            "id": "gate_close_status",
+            "label": "Zavření brány (černý)",
+            "unit": "stav"
+          },
+          {
+            "id": "supply_drop_timer",
+            "label": "Shoz zásob za",
+            "unit": "půltahů"
+          }
+        ],
+        "mapSummary": [
+          "Hradba (#) je neprůchodná (jezdec ji přeskočí). Katapult útočníka ji promění na průchozí Trosky (výška 1).",
+          "Obránce může jednou za hru na začátku svého tahu zavřít neobsazenou Bránu (c6 nebo f6).",
+          "Černý nemůže provést rošádu kvůli rozdílné výšce polí v pevnosti."
+        ]
+      },
+      "contextualTips": [
+        {
+          "id": "tip_siege_start_white",
+          "trigger": "ON_GAME_START",
+          "side": "white",
+          "text": "Dobýváš pevnost! Máš 30 tahů (60 půltahů) na to, abys dal černému králi mat. Využívej katapult k boření hradeb."
+        },
+        {
+          "id": "tip_siege_start_black",
+          "trigger": "ON_GAME_START",
+          "side": "black",
+          "text": "Bráníš pevnost! Vyhraješ, když dáš mat, nebo udržíš krále naživu 30 tahů. Jednou za hru můžeš zavřít volnou bránu."
+        },
+        {
+          "id": "tip_catapult_ready",
+          "trigger": "ON_SPECIAL_ACTION_READY",
+          "actionId": "katapult",
+          "text": "Katapult je připraven! Na konci tahu označ libovolné pole Hradby (#) – za 2 půltahy se promění v průchozí Trosky (výška 1)."
+        },
+        {
+          "id": "tip_gate_pawn_block",
+          "trigger": "ON_SELECT_WHITE_PAWN_FACING_GATE",
+          "text": "Brána má výšku 1 – pěšec z roviny (výška 0) nemůže sebrat obránce stojícího přímo v bráně."
+        },
+        {
+          "id": "tip_black_castling_disabled",
+          "trigger": "ON_SELECT_BLACK_KING_UNMOVED",
+          "text": "V pevnosti nelze provést rošádu, protože pole mezi králem (výška 2) a věžemi (výška 1) nemají stejnou výšku."
+        },
+        {
+          "id": "tip_supplies_warning",
+          "trigger": "ON_EVENT_WARNING",
+          "eventId": "zasoby",
+          "text": "Za 2 půltahy dorazí na označená pole v předpolí zásoby s vylepšením (*)!"
+        }
+      ]
+    }
+  ]
+}

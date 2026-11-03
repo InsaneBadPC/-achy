@@ -16,6 +16,8 @@ import { ComicSpeechBubble } from './ComicSpeechBubble';
 import { PWAInstallButton } from './PWAInstallButton';
 import { soundEngine } from '../audio/soundEngine';
 import { voiceEngine } from '../audio/voiceEngine';
+import { BattlefieldState } from '../types/battlefield';
+import { BATTLEFIELD_MAPS } from '../game/battlefieldData';
 import {
   RotateCcw,
   Volume2,
@@ -32,6 +34,11 @@ import {
   Sparkles,
   Mic,
   MicOff,
+  Info,
+  Target,
+  DoorClosed,
+  X,
+  Castle,
 } from 'lucide-react';
 
 interface GameHUDProps {
@@ -49,6 +56,9 @@ interface GameHUDProps {
   isVoiceOn: boolean;
   isAiThinking: boolean;
   myColor?: PieceColor;
+  gameStyle?: 'classic' | 'battlefield';
+  battlefieldState?: BattlefieldState | null;
+  activeSpecialTargeting?: 'katapult' | 'zavreni_brany' | null;
   onCameraChange: (view: 'iso' | 'white' | 'black' | 'top') => void;
   onUndoMove: () => void;
   onToggleSound: () => void;
@@ -60,6 +70,9 @@ interface GameHUDProps {
   onDismissQuote: () => void;
   onChangeGameMode: (mode: GameMode) => void;
   onOpenUpdates: () => void;
+  onOpenBattlefieldRules?: () => void;
+  onTriggerSpecialAction?: (actionId: 'katapult' | 'zavreni_brany') => void;
+  onCancelSpecialTargeting?: () => void;
   hasUpdateAvailable?: boolean;
 }
 
@@ -78,6 +91,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   isVoiceOn,
   isAiThinking,
   myColor,
+  gameStyle = 'classic',
+  battlefieldState,
+  activeSpecialTargeting,
   onCameraChange,
   onUndoMove,
   onToggleSound,
@@ -89,6 +105,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onDismissQuote,
   onChangeGameMode,
   onOpenUpdates,
+  onOpenBattlefieldRules,
+  onTriggerSpecialAction,
+  onCancelSpecialTargeting,
   hasUpdateAvailable,
 }) => {
   const [isDockCollapsed, setIsDockCollapsed] = useState(false);
@@ -113,6 +132,22 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     king: '♚',
   };
 
+  const bfMapConfig = battlefieldState ? BATTLEFIELD_MAPS[battlefieldState.mapId] : null;
+
+  // Catapult readiness for White
+  const isCatapultReady =
+    battlefieldState?.mapId === 'oblehani' &&
+    currentTurn === 'white' &&
+    !battlefieldState.catapultPending &&
+    battlefieldState.halfMoveCount >= 10 &&
+    (battlefieldState.halfMoveCount % 12 === 0 || battlefieldState.halfMoveCount % 12 >= 10);
+
+  // Gate close readiness for Black
+  const isGateCloseReady =
+    battlefieldState?.mapId === 'oblehani' &&
+    currentTurn === 'black' &&
+    !battlefieldState.gateClosed;
+
   return (
     <div className="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-3 sm:p-5 overflow-hidden font-['Fredoka']">
       {/* Top Bar: Turn status badge, check warning, mode quick-switch, home & updates */}
@@ -128,9 +163,16 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               }`}
             />
             <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-bold tracking-wide">
-                {currentTurn === 'white' ? 'Bílý na tahu' : 'Černý na tahu'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm font-bold tracking-wide">
+                  {currentTurn === 'white' ? 'Bílý na tahu' : 'Černý na tahu'}
+                </span>
+                {gameStyle === 'battlefield' && bfMapConfig && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                    {bfMapConfig.name}
+                  </span>
+                )}
+              </div>
               <span className="text-[11px] text-slate-300">
                 Tah #{turnNumber} •{' '}
                 {gameMode === 'ai'
@@ -158,45 +200,90 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 <span className="text-slate-400 font-bold text-[10px] mr-0.5 uppercase">Bílí zajali:</span>
                 <div className="flex -space-x-0.5 text-amber-300">
                   {capturedBlack.slice(-6).map((p, idx) => (
-                    <span key={idx} className="text-sm" title={p.type}>
-                      {pieceSymbols[p.type] || '♟'}
+                    <span key={idx} className="text-sm font-bold drop-shadow" title={p.type}>
+                      {pieceSymbols[p.type]}
                     </span>
                   ))}
                 </div>
-                {capturedBlack.length > 6 && (
-                  <span className="text-[10px] text-amber-400 font-bold font-mono">+{capturedBlack.length - 6}</span>
-                )}
               </div>
             )}
             {capturedWhite.length > 0 && (
               <div className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-900/80 backdrop-blur border border-white/10 text-xs text-white">
                 <span className="text-slate-400 font-bold text-[10px] mr-0.5 uppercase">Černí zajali:</span>
-                <div className="flex -space-x-0.5 text-slate-400">
+                <div className="flex -space-x-0.5 text-slate-300">
                   {capturedWhite.slice(-6).map((p, idx) => (
-                    <span key={idx} className="text-sm" title={p.type}>
-                      {pieceSymbols[p.type] || '♟'}
+                    <span key={idx} className="text-sm font-bold drop-shadow" title={p.type}>
+                      {pieceSymbols[p.type]}
                     </span>
                   ))}
                 </div>
-                {capturedWhite.length > 6 && (
-                  <span className="text-[10px] text-slate-400 font-bold font-mono">+{capturedWhite.length - 6}</span>
-                )}
               </div>
             )}
           </div>
+
+          {/* Contextual Tip Banner for Battlefield */}
+          {gameStyle === 'battlefield' && battlefieldState?.activeTip && (
+            <div className="max-w-md bg-gradient-to-r from-slate-900/95 to-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-amber-400/40 text-xs text-amber-200 shadow-xl flex items-center gap-2 animate-in fade-in">
+              <span className="text-base">💡</span>
+              <span className="leading-tight">{battlefieldState.activeTip}</span>
+            </div>
+          )}
         </div>
 
-        {/* Center: Check Warning Banner */}
+        {/* Center: Check Warning */}
         {isCheck && (
-          <div className="animate-bounce flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 text-white font-['Bangers'] text-lg sm:text-xl tracking-wider shadow-[0_10px_25px_rgba(225,29,72,0.5)] border border-rose-400/50">
-            <span>⚠️</span>
-            <span>ŠACH! KRÁL V OHROŽENÍ!</span>
+          <div className="animate-bounce px-4 py-1.5 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 border-2 border-white text-white font-['Bangers'] text-lg sm:text-2xl tracking-wider shadow-[0_0_25px_rgba(239,68,68,0.7)]">
+            POZOR ŠACH!
           </div>
         )}
 
-        {/* Right: Mode Switcher, Update Button & Return Home */}
+        {/* Right: Actions, Battlefield Rules Icon, Mode Switch, Home */}
         <div className="flex items-center gap-2">
-          {/* Quick Mode Switch Dropdown */}
+          {/* Battlefield Rules Icon */}
+          {gameStyle === 'battlefield' && onOpenBattlefieldRules && (
+            <button
+              onClick={() => {
+                soundEngine.playSelect();
+                onOpenBattlefieldRules();
+              }}
+              className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 text-slate-950 border border-amber-300 text-xs font-black flex items-center gap-1.5 shadow-lg shadow-amber-500/20 cursor-pointer transition-all active:scale-95"
+              title="Zobrazit pravidla mapy a stav událostí"
+            >
+              <Info className="w-4 h-4 stroke-[2.5]" />
+              <span className="hidden sm:inline">Pravidla mapy</span>
+            </button>
+          )}
+
+          {/* Obléhání Special Actions: Catapult & Gate */}
+          {isCatapultReady && onTriggerSpecialAction && (
+            <button
+              onClick={() => {
+                soundEngine.playSelect();
+                onTriggerSpecialAction('katapult');
+              }}
+              className="px-3.5 py-2 rounded-2xl bg-rose-500 hover:bg-rose-400 text-white font-black text-xs flex items-center gap-1.5 shadow-lg shadow-rose-500/40 border border-rose-300 cursor-pointer animate-pulse"
+              title="Zaměřit katapult na hradbu"
+            >
+              <Target className="w-4 h-4" />
+              <span>Odpálit Katapult!</span>
+            </button>
+          )}
+
+          {isGateCloseReady && onTriggerSpecialAction && (
+            <button
+              onClick={() => {
+                soundEngine.playSelect();
+                onTriggerSpecialAction('zavreni_brany');
+              }}
+              className="px-3.5 py-2 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-lg shadow-cyan-500/40 border border-cyan-300 cursor-pointer"
+              title="Zavřít volnou bránu (1x za hru)"
+            >
+              <DoorClosed className="w-4 h-4" />
+              <span>Zavřít Bránu</span>
+            </button>
+          )}
+
+          {/* Mode Switcher */}
           <div className="relative">
             <button
               onClick={() => setShowModeSwitch(!showModeSwitch)}
@@ -214,7 +301,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
             {showModeSwitch && (
               <div className="absolute right-0 top-12 w-48 rounded-2xl bg-slate-900 border border-white/15 shadow-2xl p-2 flex flex-col gap-1 z-30 animate-in fade-in zoom-in-95">
-                <span className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">Přepnout mód (restartuje hru):</span>
+                <span className="text-[10px] font-bold text-slate-400 px-2 py-1 uppercase">
+                  Přepnout mód (restartuje hru):
+                </span>
                 <button
                   onClick={() => {
                     onChangeGameMode('ai');
@@ -286,7 +375,27 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       </div>
 
-      {/* Comic Speech Bubble (Living characters with speech synthesis) */}
+      {/* Special Targeting Alert Overlay */}
+      {activeSpecialTargeting && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto bg-slate-950/95 border-2 border-amber-400 p-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in zoom-in-95">
+          <Target className="w-5 h-5 text-amber-400 animate-spin" />
+          <span className="text-xs font-bold text-white">
+            {activeSpecialTargeting === 'katapult'
+              ? '🎯 Klikni na pole Hradby (#) pro zaměření katapultu!'
+              : '🚪 Klikni na volnou Bránu (c6 nebo f6) pro její zavření!'}
+          </span>
+          {onCancelSpecialTargeting && (
+            <button
+              onClick={onCancelSpecialTargeting}
+              className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Comic Speech Bubble */}
       <ComicSpeechBubble quote={currentQuote} onDismiss={onDismissQuote} />
 
       {/* Floating Notifications Area */}
@@ -349,7 +458,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         >
           {/* Camera View Presets */}
           <div className="flex items-center gap-1 bg-white/5 p-1 rounded-2xl border border-white/10">
-            <span className="text-[10px] text-slate-400 font-bold px-1.5 hidden sm:inline uppercase">Pohled:</span>
+            <span className="text-[10px] text-slate-400 font-bold px-1.5 hidden sm:inline uppercase">
+              Pohled:
+            </span>
             {(
               [
                 { id: 'iso', label: '3D Iso' },
@@ -429,7 +540,11 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all cursor-pointer"
               title={isMuted ? 'Zapnout zvuky' : 'Ztlumit zvuky'}
             >
-              {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4 text-lime-400" />}
+              {isMuted ? (
+                <VolumeX className="w-4 h-4 text-rose-400" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-lime-400" />
+              )}
             </button>
           </div>
         </div>
