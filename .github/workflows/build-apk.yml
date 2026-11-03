@@ -14,6 +14,8 @@ jobs:
   build-android-apk:
     name: Sestavení nativního APK s automatickým navýšením verze
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ""
 
     steps:
       - name: 1. Stažení zdrojového kódu
