@@ -13,6 +13,13 @@ export interface AppReleaseInfo {
   publishedAt: string;
 }
 
+export interface DownloadProgress {
+  loaded: number;
+  total: number;
+  percent: number;
+  speed: string;
+}
+
 export const CURRENT_APP_VERSION = '1.0.5';
 const DEFAULT_REPO = 'InsaneBadPC/-achy';
 
@@ -127,4 +134,81 @@ export async function checkForGitHubUpdate(repoName: string = DEFAULT_REPO): Pro
     console.warn('Update check failed:', err);
     return defaultResult;
   }
+}
+
+/**
+ * Download update directly inside the app with real-time progress.
+ * If running on native Android, triggers native DownloadManager & Package Installer.
+ * In web/PWA mode, uses streaming fetch and triggers seamless file download.
+ */
+export async function downloadUpdateInApp(
+  url: string,
+  fileName: string = 'WackyChess-Update.apk',
+  onProgress?: (progress: DownloadProgress) => void
+): Promise<void> {
+  // 1. Try native Capacitor Android updater plugin first
+  try {
+    const { Capacitor, registerPlugin } = await import('@capacitor/core');
+    if (Capacitor.isNativePlatform()) {
+      const NativeUpdater = registerPlugin<{
+        downloadAndInstall: (opts: { url: string; fileName: string }) => Promise<{ status: string; downloadId: number }>;
+      }>('NativeUpdater');
+      await NativeUpdater.downloadAndInstall({ url, fileName });
+      return;
+    }
+  } catch (err) {
+    console.warn('Native updater plugin bypassed or unavailable:', err);
+  }
+
+  // 2. In-app streaming fetch downloader with real-time percentage
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Stahování selhalo (HTTP ${response.status})`);
+  }
+
+  const contentLength = response.headers.get('content-length');
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+  let loaded = 0;
+  const startTime = Date.now();
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    const blob = await response.blob();
+    triggerBlobDownload(blob, fileName);
+    return;
+  }
+
+  const chunks: Uint8Array[] = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      loaded += value.length;
+      const elapsedSec = (Date.now() - startTime) / 1000 || 0.1;
+      const speedMBs = (loaded / (1024 * 1024) / elapsedSec).toFixed(1);
+      const percent = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 50;
+
+      onProgress?.({
+        loaded,
+        total: total || loaded,
+        percent,
+        speed: `${speedMBs} MB/s`,
+      });
+    }
+  }
+
+  const blob = new Blob(chunks as BlobPart[], { type: 'application/vnd.android.package-archive' });
+  triggerBlobDownload(blob, fileName);
+}
+
+function triggerBlobDownload(blob: Blob, fileName: string) {
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 }
