@@ -458,6 +458,25 @@ export default function App() {
       newBoard[to.row][to.col] = pieceCopy;
       newBoard[from.row][from.col] = null;
 
+      // Handle Castling: moving King 2 squares sideways relocates corresponding Rook
+      if (movingPiece.type === 'king' && Math.abs(to.col - from.col) === 2) {
+        if (to.col === 6) {
+          // Kingside castling: move rook from col 7 to col 5
+          const rook = newBoard[to.row][7];
+          if (rook) {
+            newBoard[to.row][5] = { ...rook, row: to.row, col: 5, hasMoved: true };
+            newBoard[to.row][7] = null;
+          }
+        } else if (to.col === 2) {
+          // Queenside castling: move rook from col 0 to col 3
+          const rook = newBoard[to.row][0];
+          if (rook) {
+            newBoard[to.row][3] = { ...rook, row: to.row, col: 3, hasMoved: true };
+            newBoard[to.row][0] = null;
+          }
+        }
+      }
+
       let finalRow = to.row;
       let finalCol = to.col;
 
@@ -1097,23 +1116,16 @@ export default function App() {
         onSquareClick={handleSquareClick}
       />
 
-      {/* Cinematic Fly-In Intro Banner (Click anywhere to dismiss or auto-hides) */}
+      {/* Cinematic Fly-In Intro Banner (Sleek non-blocking top toast) */}
       {isFlyInActive && screen === 'playing' && (
         <div
-          onClick={() => {
-            soundEngine.playSelect();
-            setIsFlyInActive(false);
-          }}
-          className="fixed inset-0 z-40 cursor-pointer flex flex-col items-center justify-center animate-in zoom-in-75 fade-in duration-300 select-none bg-black/30 pointer-events-auto"
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-40 pointer-events-none flex flex-col items-center justify-center animate-in slide-in-from-top fade-in duration-300 select-none"
         >
-          <div className="rotate-[-2deg] bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 font-['Bangers'] text-4xl sm:text-6xl tracking-wider px-8 py-3.5 rounded-3xl border-3 border-black shadow-[0_15px_40px_rgba(245,158,11,0.5)] active:scale-95 transition-transform">
+          <div className="bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 text-slate-950 font-['Bangers'] text-2xl sm:text-4xl tracking-wider px-6 py-2.5 rounded-2xl border-2 border-black shadow-[0_8px_30px_rgba(245,158,11,0.5)]">
             {gameStyle === 'battlefield'
               ? `⚔️ BOJIŠTĚ: ${BATTLEFIELD_MAPS[battlefieldMapId]?.name.toUpperCase()}! ⚔️`
               : '⚔️ BITVA ZAČÍNÁ! ⚔️'}
           </div>
-          <span className="text-white font-bold text-xs sm:text-sm uppercase bg-black/80 px-4 py-1.5 rounded-full mt-3 border border-white/20 animate-pulse">
-            Přílet na šachovnici... (Klepnutím přeskočíte)
-          </span>
         </div>
       )}
 

@@ -207,11 +207,35 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     // Initial base board setup
     const boardCtx = createChessboard(theme);
     scene.add(boardCtx.boardGroup);
+    scene.add(boardCtx.highlightGroup);
+    scene.add(boardCtx.trapsGroup);
+    scene.add(boardCtx.itemsGroup);
+    scene.add(boardCtx.particleGroup);
+    scene.add(boardCtx.checkRingMesh);
     boardCtxRef.current = boardCtx;
 
-    const handlePointerDown = (e: MouseEvent) => {
-      if (e.button !== 0) return;
+    let pointerDownPos: { x: number; y: number; time: number } | null = null;
 
+    const handlePointerDown = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      pointerDownPos = { x: e.clientX, y: e.clientY, time: Date.now() };
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      if (e.button !== 0 || !pointerDownPos) return;
+
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const elapsed = Date.now() - pointerDownPos.time;
+      pointerDownPos = null;
+
+      // Filter out camera orbit rotation or drag (threshold 12px or hold > 700ms)
+      if (dist > 12 || elapsed > 700) {
+        return;
+      }
+
+      // Tap to skip camera fly-in
       if (flyInStateRef.current.active) {
         flyInStateRef.current.active = false;
         if (controlsRef.current && cameraRef.current) {
@@ -221,6 +245,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
           controlsRef.current.update();
         }
         onFlyInFinishedRef.current?.();
+        return;
       }
 
       const rect = renderer.domElement.getBoundingClientRect();
@@ -229,13 +254,30 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
       _raycaster.setFromCamera(_mouse, camera);
 
-      // Check hits on active board group
+      // Check hits on active pieces and active board tiles
+      const pieceObjects = Array.from(piecesMapRef.current.values());
       const targetGroup = bfCtxRef.current ? bfCtxRef.current.containerGroup : boardCtx.boardGroup;
-      const intersects = _raycaster.intersectObjects(targetGroup.children, true);
+      const candidateObjects = [...pieceObjects, ...targetGroup.children];
+
+      const intersects = _raycaster.intersectObjects(candidateObjects, true);
       for (const hit of intersects) {
         let curr: THREE.Object3D | null = hit.object;
-        while (curr && curr !== targetGroup) {
-          if (curr.userData && curr.userData.isSquare) {
+        while (curr && curr !== scene) {
+          if (
+            curr.userData &&
+            curr.userData.isPiece &&
+            curr.userData.row !== undefined &&
+            curr.userData.col !== undefined
+          ) {
+            onSquareClickRef.current(curr.userData.row, curr.userData.col);
+            return;
+          }
+          if (
+            curr.userData &&
+            curr.userData.isSquare &&
+            curr.userData.row !== undefined &&
+            curr.userData.col !== undefined
+          ) {
             onSquareClickRef.current(curr.userData.row, curr.userData.col);
             return;
           }
@@ -256,6 +298,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
     const domElem = renderer.domElement;
     domElem.addEventListener('pointerdown', handlePointerDown);
+    domElem.addEventListener('pointerup', handlePointerUp);
 
     const handleResize = () => {
       if (!mountRef.current) return;
@@ -327,6 +370,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', handleResize);
       domElem.removeEventListener('pointerdown', handlePointerDown);
+      domElem.removeEventListener('pointerup', handlePointerUp);
       renderer.dispose();
       if (mountRef.current && domElem.parentNode === mountRef.current) {
         mountRef.current.removeChild(domElem);
@@ -338,6 +382,12 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
+
+    // Reset piece models on arena switch so they freshly anchor to new elevations
+    piecesMapRef.current.forEach((model) => {
+      scene.remove(model);
+    });
+    piecesMapRef.current.clear();
 
     if (gameStyle === 'battlefield' && battlefieldState) {
       // Hide flat chessboard, mount rich 3D battlefield terrain
@@ -427,13 +477,20 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
             ? getTileSurfaceY(battlefieldState, r, c)
             : 0;
 
+        const worldTarget = squareToWorld(r, c);
+
         if (!model) {
           model = createCharacterModel(piece.type, piece.color, piece.id);
-          const worldPos = squareToWorld(r, c);
-          model.position.set(worldPos.x, surfaceY, worldPos.z);
+          model.position.set(worldTarget.x, surfaceY, worldTarget.z);
           scene.add(model);
           piecesMap.set(piece.id, model);
         }
+
+        // Keep userData strictly in sync with board coordinates for raycasting
+        model.userData.row = r;
+        model.userData.col = c;
+        model.userData.isPiece = true;
+        model.userData.pieceId = piece.id;
 
         updateCharacterState(model, piece);
 
@@ -442,7 +499,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
           lastMove !== prevLastMoveRef.current &&
           lastMove.piece.id === piece.id
         ) {
-          const worldTarget = squareToWorld(r, c);
           const dist = Math.hypot(
             model.position.x - worldTarget.x,
             model.position.z - worldTarget.z
@@ -472,8 +528,8 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
             }
           }
         } else {
-          // Adjust vertical height on terrain updates
-          model.position.y = surfaceY;
+          // Snap piece to exact board coordinates if not animating a hop
+          model.position.set(worldTarget.x, surfaceY, worldTarget.z);
         }
       }
     }
@@ -481,6 +537,9 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     // Handle captures
     piecesMap.forEach((model, id) => {
       if (!currentPieceIds.has(id)) {
+        model.userData.isPiece = false;
+        model.userData.row = undefined;
+        model.userData.col = undefined;
         spawnConfettiBurst(boardCtx, {
           x: model.position.x,
           y: model.position.y + 0.5,
@@ -505,14 +564,35 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     // Adjust highlight meshes Y position if on battlefield
     if (gameStyle === 'battlefield' && battlefieldState && boardCtxRef.current) {
       boardCtxRef.current.highlightGroup.children.forEach((child) => {
-        const sq = worldToSquare(child.position.x, child.position.z);
-        if (sq) {
-          const sy = getTileSurfaceY(battlefieldState, sq.row, sq.col);
-          child.position.y = sy + 0.05;
+        if (child.userData && child.userData.row !== undefined && child.userData.col !== undefined) {
+          const sy = getTileSurfaceY(battlefieldState, child.userData.row, child.userData.col);
+          child.position.y = sy + 0.06;
+        } else {
+          const sq = worldToSquare(child.position.x, child.position.z);
+          if (sq) {
+            const sy = getTileSurfaceY(battlefieldState, sq.row, sq.col);
+            child.position.y = sy + 0.06;
+          }
         }
       });
     }
-  }, [selectedSquare, legalMoves, lastMove, gameStyle, battlefieldState]);
+
+    // King check danger ring
+    if (isCheck && boardCtxRef.current) {
+      const kingPos = findKing(board, currentTurn);
+      if (kingPos) {
+        const worldPos = squareToWorld(kingPos.row, kingPos.col);
+        const sy =
+          gameStyle === 'battlefield' && battlefieldState
+            ? getTileSurfaceY(battlefieldState, kingPos.row, kingPos.col)
+            : 0;
+        boardCtxRef.current.checkRingMesh.position.set(worldPos.x, sy + 0.06, worldPos.z);
+        (boardCtxRef.current.checkRingMesh.material as THREE.MeshBasicMaterial).opacity = 0.85;
+      }
+    } else if (boardCtxRef.current) {
+      (boardCtxRef.current.checkRingMesh.material as THREE.MeshBasicMaterial).opacity = 0;
+    }
+  }, [selectedSquare, legalMoves, lastMove, gameStyle, battlefieldState, isCheck, currentTurn, board]);
 
   // Update Traps
   useEffect(() => {

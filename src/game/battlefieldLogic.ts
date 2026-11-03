@@ -305,22 +305,178 @@ export function isSquareAttackedInBattlefield(
   byColor: PieceColor,
   state: BattlefieldState
 ): boolean {
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const piece = board[r][c];
-      if (piece && piece.color === byColor) {
-        // Immobilized pieces give NO attack
-        if (isPieceImmobilized(piece, state)) continue;
-        // Flooded pieces give NO attack
-        if (isSquareFlooded(state, r, c)) continue;
+  const targetH = getHeightAt(state, targetRow, targetCol);
 
-        const moves = getBattlefieldPseudoMoves(board, piece, state);
-        if (moves.some((m) => m.row === targetRow && m.col === targetCol)) {
+  // Helper: check if stepping from (fromR, fromC) to (toR, toC) is physically allowed by terrain & height
+  const canPhysicallyStep = (
+    fromR: number,
+    fromC: number,
+    toR: number,
+    toC: number,
+    isKnight = false
+  ): boolean => {
+    if (!isInsideBoard(toR, toC)) return false;
+    const destTerrain = getTerrainAt(state, toR, toC);
+
+    if (isKnight) {
+      return destTerrain.knightCanLand;
+    }
+
+    if (!destTerrain.passable) return false;
+
+    const fromH = getHeightAt(state, fromR, fromC);
+    const toH = getHeightAt(state, toR, toC);
+    const stepUp = toH - fromH;
+    if (stepUp > 1) return false;
+
+    return true;
+  };
+
+  // 1. Pawn attacks (pawns only attack diagonally forward towards opponent)
+  const pawnPdr = byColor === 'white' ? 1 : -1;
+  const pawnRow = targetRow + pawnPdr;
+  for (const dc of [-1, 1]) {
+    const pawnCol = targetCol + dc;
+    if (isInsideBoard(pawnRow, pawnCol)) {
+      const p = board[pawnRow][pawnCol];
+      if (
+        p &&
+        p.color === byColor &&
+        p.type === 'pawn' &&
+        !isPieceImmobilized(p, state) &&
+        !isSquareFlooded(state, pawnRow, pawnCol)
+      ) {
+        if (canPhysicallyStep(pawnRow, pawnCol, targetRow, targetCol, false)) {
+          const pawnH = getHeightAt(state, pawnRow, pawnCol);
+          if (targetH <= pawnH) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Knight attacks
+  const knightOffsets = [
+    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+    [1, -2], [1, 2], [2, -1], [2, 1],
+  ];
+  for (const [dr, dc] of knightOffsets) {
+    const r = targetRow + dr;
+    const c = targetCol + dc;
+    if (isInsideBoard(r, c)) {
+      const p = board[r][c];
+      if (
+        p &&
+        p.color === byColor &&
+        p.type === 'knight' &&
+        !isPieceImmobilized(p, state) &&
+        !isSquareFlooded(state, r, c)
+      ) {
+        if (canPhysicallyStep(r, c, targetRow, targetCol, true)) {
           return true;
         }
       }
     }
   }
+
+  // 3. King attacks (adjacent squares)
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = targetRow + dr;
+      const c = targetCol + dc;
+      if (isInsideBoard(r, c)) {
+        const p = board[r][c];
+        if (
+          p &&
+          p.color === byColor &&
+          p.type === 'king' &&
+          !isPieceImmobilized(p, state) &&
+          !isSquareFlooded(state, r, c)
+        ) {
+          if (canPhysicallyStep(r, c, targetRow, targetCol, false)) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Diagonal rays (Bishop, Queen)
+  const diagDirs: [number, number][] = [
+    [-1, -1], [-1, 1], [1, -1], [1, 1],
+  ];
+  for (const [dr, dc] of diagDirs) {
+    let r = targetRow + dr;
+    let c = targetCol + dc;
+    let prevR = targetRow;
+    let prevC = targetCol;
+    while (isInsideBoard(r, c)) {
+      if (!canPhysicallyStep(prevR, prevC, r, c, false)) break;
+
+      const p = board[r][c];
+      if (p) {
+        if (
+          p.color === byColor &&
+          (p.type === 'bishop' || p.type === 'queen') &&
+          !isPieceImmobilized(p, state) &&
+          !isSquareFlooded(state, r, c)
+        ) {
+          return true;
+        }
+        break; // Blocked by piece
+      }
+
+      const t = getTerrainAt(state, r, c);
+      if (t.stopsSlidingPieces) {
+        break; // Forest or Ford stops line of sight
+      }
+
+      prevR = r;
+      prevC = c;
+      r += dr;
+      c += dc;
+    }
+  }
+
+  // 5. Orthogonal rays (Rook, Queen)
+  const orthoDirs: [number, number][] = [
+    [-1, 0], [1, 0], [0, -1], [0, 1],
+  ];
+  for (const [dr, dc] of orthoDirs) {
+    let r = targetRow + dr;
+    let c = targetCol + dc;
+    let prevR = targetRow;
+    let prevC = targetCol;
+    while (isInsideBoard(r, c)) {
+      if (!canPhysicallyStep(prevR, prevC, r, c, false)) break;
+
+      const p = board[r][c];
+      if (p) {
+        if (
+          p.color === byColor &&
+          (p.type === 'rook' || p.type === 'queen') &&
+          !isPieceImmobilized(p, state) &&
+          !isSquareFlooded(state, r, c)
+        ) {
+          return true;
+        }
+        break; // Blocked by piece
+      }
+
+      const t = getTerrainAt(state, r, c);
+      if (t.stopsSlidingPieces) {
+        break; // Forest or Ford stops line of sight
+      }
+
+      prevR = r;
+      prevC = c;
+      r += dr;
+      c += dc;
+    }
+  }
+
   return false;
 }
 

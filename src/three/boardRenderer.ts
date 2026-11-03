@@ -125,22 +125,18 @@ export function createChessboard(theme: BoardTheme = 'royal_wood'): BoardMeshCon
   // Highlight overlays group
   const highlightGroup = new THREE.Group();
   highlightGroup.name = 'highlights';
-  boardGroup.add(highlightGroup);
 
   // Traps group
   const trapsGroup = new THREE.Group();
   trapsGroup.name = 'traps';
-  boardGroup.add(trapsGroup);
 
   // Items group
   const itemsGroup = new THREE.Group();
   itemsGroup.name = 'bonusItems';
-  boardGroup.add(itemsGroup);
 
   // Particle effects group
   const particleGroup = new THREE.Group();
   particleGroup.name = 'particles';
-  boardGroup.add(particleGroup);
 
   // King check danger ring
   const checkRingGeom = new THREE.RingGeometry(0.45, 0.58, 32);
@@ -153,7 +149,6 @@ export function createChessboard(theme: BoardTheme = 'royal_wood'): BoardMeshCon
   const checkRingMesh = new THREE.Mesh(checkRingGeom, checkRingMat);
   checkRingMesh.rotation.x = -Math.PI / 2;
   checkRingMesh.position.y = 0.09;
-  boardGroup.add(checkRingMesh);
 
   return {
     boardGroup,
@@ -192,6 +187,7 @@ export function updateHighlights(
     selMesh.rotation.x = -Math.PI / 2;
     const pos = squareToWorld(selected.row, selected.col);
     selMesh.position.set(pos.x, 0.088, pos.z);
+    selMesh.userData = { row: selected.row, col: selected.col, isSquare: true };
     ctx.highlightGroup.add(selMesh);
   }
 
@@ -217,12 +213,14 @@ export function updateHighlights(
     // Move indicator
     const mesh = new THREE.Mesh(discGeom, moveDiscMat);
     mesh.position.set(pos.x, 0.09, pos.z);
+    mesh.userData = { row: m.row, col: m.col, isSquare: true };
     ctx.highlightGroup.add(mesh);
 
     // Subtle outline ring
     const ring = new THREE.Mesh(ringGeom, attackRingMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.set(pos.x, 0.091, pos.z);
+    ring.userData = { row: m.row, col: m.col, isSquare: true };
     ctx.highlightGroup.add(ring);
   });
 
@@ -240,12 +238,14 @@ export function updateHighlights(
     const fromMesh = new THREE.Mesh(trailGeom, lastMat);
     fromMesh.rotation.x = -Math.PI / 2;
     fromMesh.position.set(fromPos.x, 0.085, fromPos.z);
+    fromMesh.userData = { row: lastMove.from.row, col: lastMove.from.col, isSquare: true };
     ctx.highlightGroup.add(fromMesh);
 
     const toPos = squareToWorld(lastMove.to.row, lastMove.to.col);
     const toMesh = new THREE.Mesh(trailGeom, lastMat);
     toMesh.rotation.x = -Math.PI / 2;
     toMesh.position.set(toPos.x, 0.085, toPos.z);
+    toMesh.userData = { row: lastMove.to.row, col: lastMove.to.col, isSquare: true };
     ctx.highlightGroup.add(toMesh);
   }
 }

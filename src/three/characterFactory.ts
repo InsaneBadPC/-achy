@@ -24,6 +24,7 @@ export function createCharacterModel(
     pieceId,
     type,
     color,
+    isPiece: true,
     baseY: 0,
     wobbleSpeed: 2 + Math.random() * 1.5,
     wobblePhase: Math.random() * Math.PI * 2,
@@ -640,6 +641,14 @@ export function createCharacterModel(
   statusBadgePlane.name = 'statusBadge';
   statusBadgePlane.position.set(0, 1.45, 0);
   root.add(statusBadgePlane);
+
+  // Snappy touch / click raycasting hit volume for mobile
+  const hitGeom = new THREE.CylinderGeometry(0.48, 0.48, 2.2, 12);
+  const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+  const hitVolume = new THREE.Mesh(hitGeom, hitMat);
+  hitVolume.position.y = 1.1;
+  hitVolume.name = 'hitVolume';
+  root.add(hitVolume);
 
   root.rotation.y = isWhite ? 0 : Math.PI;
 

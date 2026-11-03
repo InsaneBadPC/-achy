@@ -272,6 +272,43 @@ export function getPseudoLegalMoves(
           }
         }
       }
+
+      // Castling
+      if (checkSpecialItems && !piece.hasMoved) {
+        const oppColor: PieceColor = color === 'white' ? 'black' : 'white';
+        // Kingside castling (col 7 rook)
+        const kingsideRook = board[row][7];
+        if (
+          kingsideRook &&
+          kingsideRook.type === 'rook' &&
+          kingsideRook.color === color &&
+          !kingsideRook.hasMoved &&
+          board[row][5] === null &&
+          board[row][6] === null &&
+          !isSquareUnderAttack(board, row, col, oppColor) &&
+          !isSquareUnderAttack(board, row, 5, oppColor) &&
+          !isSquareUnderAttack(board, row, 6, oppColor)
+        ) {
+          moves.push({ row, col: 6 });
+        }
+
+        // Queenside castling (col 0 rook)
+        const queensideRook = board[row][0];
+        if (
+          queensideRook &&
+          queensideRook.type === 'rook' &&
+          queensideRook.color === color &&
+          !queensideRook.hasMoved &&
+          board[row][1] === null &&
+          board[row][2] === null &&
+          board[row][3] === null &&
+          !isSquareUnderAttack(board, row, col, oppColor) &&
+          !isSquareUnderAttack(board, row, 3, oppColor) &&
+          !isSquareUnderAttack(board, row, 2, oppColor)
+        ) {
+          moves.push({ row, col: 2 });
+        }
+      }
       break;
     }
   }
@@ -308,17 +345,108 @@ export function isSquareUnderAttack(
   col: number,
   byColor: PieceColor
 ): boolean {
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const piece = board[r][c];
-      if (piece && piece.color === byColor) {
-        const moves = getPseudoLegalMoves(board, piece, false);
-        if (moves.some((m) => m.row === row && m.col === col)) {
+  // 1. Pawn attacks (pawns only attack diagonally forward towards opponent, so in reverse from target)
+  const pawnPdr = byColor === 'white' ? 1 : -1;
+  const pawnRow = row + pawnPdr;
+  for (const dc of [-1, 1]) {
+    const pawnCol = col + dc;
+    if (isInsideBoard(pawnRow, pawnCol)) {
+      const p = board[pawnRow][pawnCol];
+      if (p && p.color === byColor && p.type === 'pawn' && (!p.frozenTurns || p.frozenTurns <= 0)) {
+        return true;
+      }
+    }
+  }
+
+  // 2. Knight attacks
+  const knightOffsets = [
+    [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+    [1, -2], [1, 2], [2, -1], [2, 1],
+  ];
+  for (const [dr, dc] of knightOffsets) {
+    const r = row + dr;
+    const c = col + dc;
+    if (isInsideBoard(r, c)) {
+      const p = board[r][c];
+      if (p && p.color === byColor && p.type === 'knight' && (!p.frozenTurns || p.frozenTurns <= 0)) {
+        return true;
+      }
+    }
+  }
+
+  // 3. King attacks (adjacent squares)
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const r = row + dr;
+      const c = col + dc;
+      if (isInsideBoard(r, c)) {
+        const p = board[r][c];
+        if (p && p.color === byColor && p.type === 'king' && (!p.frozenTurns || p.frozenTurns <= 0)) {
           return true;
         }
       }
     }
   }
+
+  // 4. Diagonal rays (Bishop, Queen)
+  const diagDirs: [number, number][] = [
+    [-1, -1], [-1, 1], [1, -1], [1, 1],
+  ];
+  for (const [dr, dc] of diagDirs) {
+    let r = row + dr;
+    let c = col + dc;
+    while (isInsideBoard(r, c)) {
+      const p = board[r][c];
+      if (p) {
+        if (p.color === byColor && (p.type === 'bishop' || p.type === 'queen') && (!p.frozenTurns || p.frozenTurns <= 0)) {
+          return true;
+        }
+        break; // Blocked by piece
+      }
+      r += dr;
+      c += dc;
+    }
+  }
+
+  // 5. Orthogonal rays (Rook, Queen, or Lightning Rod item)
+  const orthoDirs: [number, number][] = [
+    [-1, 0], [1, 0], [0, -1], [0, 1],
+  ];
+  for (const [dr, dc] of orthoDirs) {
+    let r = row + dr;
+    let c = col + dc;
+    while (isInsideBoard(r, c)) {
+      const p = board[r][c];
+      if (p) {
+        if (
+          p.color === byColor &&
+          (p.type === 'rook' || p.type === 'queen' || p.equippedItem === 'lightning_rod') &&
+          (!p.frozenTurns || p.frozenTurns <= 0)
+        ) {
+          return true;
+        }
+        break; // Blocked by piece
+      }
+      r += dr;
+      c += dc;
+    }
+  }
+
+  // 6. Mega Hammer check: any enemy piece with mega_hammer within 2-square radius
+  for (let r = Math.max(0, row - 2); r <= Math.min(BOARD_SIZE - 1, row + 2); r++) {
+    for (let c = Math.max(0, col - 2); c <= Math.min(BOARD_SIZE - 1, col + 2); c++) {
+      const p = board[r][c];
+      if (p && p.color === byColor && p.equippedItem === 'mega_hammer' && (!p.frozenTurns || p.frozenTurns <= 0)) {
+        const dr = Math.abs(r - row);
+        const dc = Math.abs(c - col);
+        if (dr <= 1 || dc <= 1 || dr === dc) {
+          return true;
+        }
+      }
+    }
+  }
+
   return false;
 }
 
