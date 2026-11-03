@@ -8,7 +8,8 @@ import { PieceColor, PieceType, ItemType } from '../types/game';
 import { createEyeTexture, createStatusBadgeTexture } from './proceduralTextures';
 import { ITEM_CONFIG } from '../game/trapsAndItems';
 
-const eyeTextureHappy = createEyeTexture('happy');
+const eyeTextureWhiteHappy = createEyeTexture('happy', '#0284c7');
+const eyeTextureBlackHappy = createEyeTexture('happy', '#a855f7');
 const eyeTextureDizzy = createEyeTexture('dizzy');
 const eyeTextureSurprised = createEyeTexture('surprised');
 
@@ -31,44 +32,52 @@ export function createCharacterModel(
 
   const isWhite = color === 'white';
 
-  const bodyColor = isWhite ? 0xf8fafc : 0x1e293b;
-  const accentColor = isWhite ? 0x38bdf8 : 0xec4899;
-  const goldColor = 0xf59e0b;
-  const skinColor = isWhite ? 0xfde047 : 0xa78bfa;
-  const metalColor = isWhite ? 0xe2e8f0 : 0x475569;
+  // High-saturation, vibrant, joyful cartoon color palette
+  const bodyColor = isWhite ? 0xffffff : 0x18181b; // Crisp porcelain white vs Glossy midnight onyx
+  const accentColor = isWhite ? 0x2563eb : 0xd946ef; // Electric royal sapphire vs Radiant neon magenta
+  const secondaryColor = isWhite ? 0xef4444 : 0xf97316; // Heroic crimson red vs Fiery amber orange
+  const goldColor = isWhite ? 0xfbbf24 : 0xf59e0b; // Gleaming 24K polished gold vs Antique burnished gold
+  const skinColor = isWhite ? 0xffedd5 : 0xc084fc; // Warm cute peach skin vs Playful anime lilac
+  const metalColor = isWhite ? 0xcfd8dc : 0x475569; // Polished chrome vs Gunmetal steel
 
   const bodyMat = new THREE.MeshStandardMaterial({
     color: bodyColor,
-    roughness: 0.28,
-    metalness: 0.15,
+    roughness: 0.16,
+    metalness: 0.12,
   });
 
   const accentMat = new THREE.MeshStandardMaterial({
     color: accentColor,
+    roughness: 0.18,
+    metalness: 0.28,
+  });
+
+  const secondaryMat = new THREE.MeshStandardMaterial({
+    color: secondaryColor,
     roughness: 0.2,
-    metalness: 0.35,
+    metalness: 0.3,
   });
 
   const goldMat = new THREE.MeshStandardMaterial({
     color: goldColor,
-    roughness: 0.18,
-    metalness: 0.88,
+    roughness: 0.12,
+    metalness: 0.94,
   });
 
   const skinMat = new THREE.MeshStandardMaterial({
     color: skinColor,
-    roughness: 0.45,
+    roughness: 0.35,
     metalness: 0.05,
   });
 
   const metalMat = new THREE.MeshStandardMaterial({
     color: metalColor,
-    roughness: 0.25,
-    metalness: 0.75,
+    roughness: 0.2,
+    metalness: 0.85,
   });
 
   const eyeMat = new THREE.MeshBasicMaterial({
-    map: eyeTextureHappy,
+    map: isWhite ? eyeTextureWhiteHappy : eyeTextureBlackHappy,
     transparent: true,
   });
 
@@ -89,6 +98,19 @@ export function createCharacterModel(
     rightEye.position.set(spacing, y, z);
     rightEye.name = 'eyeRight';
     parent.add(rightEye);
+
+    // Cute rosy blushing cartoon cheeks
+    const cheekGeom = new THREE.SphereGeometry(radius * 0.65, 10, 10);
+    const cheekMat = new THREE.MeshBasicMaterial({ color: isWhite ? 0xf472b6 : 0xf43f5e });
+    const leftCheek = new THREE.Mesh(cheekGeom, cheekMat);
+    leftCheek.position.set(-spacing * 1.35, y - radius * 1.05, z * 0.95);
+    leftCheek.scale.set(1, 0.6, 0.4);
+    parent.add(leftCheek);
+
+    const rightCheek = new THREE.Mesh(cheekGeom, cheekMat);
+    rightCheek.position.set(spacing * 1.35, y - radius * 1.05, z * 0.95);
+    rightCheek.scale.set(1, 0.6, 0.4);
+    parent.add(rightCheek);
   };
 
   // Base Pedestal with double bevel
@@ -429,12 +451,39 @@ export function createCharacterModel(
       crownBase.position.y = 0.18;
       headGroup.add(crownBase);
 
+      const jewelColors = [0xef4444, 0x10b981, 0x3b82f6, 0xa855f7, 0xf59e0b];
       for (let i = 0; i < 5; i++) {
         const spike = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.16, 8), goldMat);
         const ang = (i / 5) * Math.PI * 2;
         spike.position.set(Math.cos(ang) * 0.24, 0.28, Math.sin(ang) * 0.24);
         headGroup.add(spike);
+
+        // Glowing gem jewel on crown tip
+        const gem = new THREE.Mesh(
+          new THREE.SphereGeometry(0.045, 8, 8),
+          new THREE.MeshStandardMaterial({
+            color: jewelColors[i],
+            roughness: 0.1,
+            metalness: 0.8,
+            emissive: jewelColors[i],
+            emissiveIntensity: 0.35,
+          })
+        );
+        gem.position.set(Math.cos(ang) * 0.24, 0.38, Math.sin(ang) * 0.24);
+        headGroup.add(gem);
       }
+
+      // Royal cape on King's back
+      const capeGeom = new THREE.CylinderGeometry(0.36, 0.42, 0.75, 12, 1, false, 0, Math.PI);
+      const capeMat = new THREE.MeshStandardMaterial({
+        color: isWhite ? 0xef4444 : 0x7c3aed,
+        roughness: 0.4,
+        side: THREE.DoubleSide,
+      });
+      const cape = new THREE.Mesh(capeGeom, capeMat);
+      cape.rotation.y = Math.PI / 2;
+      cape.position.set(0, 0.42, -0.05);
+      torsoGroup.add(cape);
 
       const cross = new THREE.Mesh(
         new THREE.BoxGeometry(0.06, 0.15, 0.04),
@@ -635,7 +684,8 @@ export function updateCharacterState(
   const eyeRight = model.getObjectByName('eyeRight') as THREE.Mesh;
 
   if (eyeLeft && eyeRight) {
-    const eyeMat = (piece.isDizzy ? eyeTextureDizzy : (piece.frozenTurns ? eyeTextureSurprised : eyeTextureHappy));
+    const defaultHappy = model.userData.color === 'white' ? eyeTextureWhiteHappy : eyeTextureBlackHappy;
+    const eyeMat = (piece.isDizzy ? eyeTextureDizzy : (piece.frozenTurns ? eyeTextureSurprised : defaultHappy));
     (eyeLeft.material as THREE.MeshBasicMaterial).map = eyeMat;
     (eyeRight.material as THREE.MeshBasicMaterial).map = eyeMat;
     (eyeLeft.material as THREE.MeshBasicMaterial).needsUpdate = true;

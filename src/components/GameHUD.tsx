@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PieceColor,
   Piece,
@@ -113,6 +113,20 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const [isDockCollapsed, setIsDockCollapsed] = useState(false);
   const [showEmotePicker, setShowEmotePicker] = useState(false);
   const [showModeSwitch, setShowModeSwitch] = useState(false);
+  const [isTipDismissed, setIsTipDismissed] = useState(false);
+  const [lastTip, setLastTip] = useState<string | null>(null);
+
+  // Auto-dismiss battlefield tip after 5 seconds or when tip changes
+  useEffect(() => {
+    if (battlefieldState?.activeTip && battlefieldState.activeTip !== lastTip) {
+      setLastTip(battlefieldState.activeTip);
+      setIsTipDismissed(false);
+      const timer = setTimeout(() => {
+        setIsTipDismissed(true);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [battlefieldState?.activeTip, lastTip]);
 
   const emotes = [
     { emoji: '🍌', text: 'Pozor na banán!' },
@@ -222,10 +236,22 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           </div>
 
           {/* Contextual Tip Banner for Battlefield */}
-          {gameStyle === 'battlefield' && battlefieldState?.activeTip && (
-            <div className="max-w-md bg-gradient-to-r from-slate-900/95 to-slate-900/90 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-amber-400/40 text-xs text-amber-200 shadow-xl flex items-center gap-2 animate-in fade-in">
-              <span className="text-base">💡</span>
-              <span className="leading-tight">{battlefieldState.activeTip}</span>
+          {gameStyle === 'battlefield' && battlefieldState?.activeTip && !isTipDismissed && (
+            <div className="max-w-md bg-gradient-to-r from-slate-900/95 via-slate-900/90 to-slate-950/95 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-amber-400/40 text-xs text-amber-200 shadow-xl flex items-center justify-between gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2">
+                <span className="text-base shrink-0">💡</span>
+                <span className="leading-tight">{battlefieldState.activeTip}</span>
+              </div>
+              <button
+                onClick={() => {
+                  soundEngine.playSelect();
+                  setIsTipDismissed(true);
+                }}
+                className="p-1 rounded-lg hover:bg-white/10 text-amber-300/70 hover:text-white cursor-pointer transition-colors shrink-0"
+                title="Zavřít nápovědu"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>

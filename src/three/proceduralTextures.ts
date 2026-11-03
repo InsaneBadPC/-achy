@@ -20,21 +20,42 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
 
   switch (theme) {
     case 'royal_wood': {
-      const baseColor = isLight ? '#fde68a' : '#92400e';
+      // High-contrast, rich vibrant oak & mahogany
+      const baseColor = isLight ? '#fffbeb' : '#7c2d12';
       ctx.fillStyle = baseColor;
       ctx.fillRect(0, 0, 256, 256);
 
-      ctx.strokeStyle = isLight ? '#f59e0b' : '#78350f';
-      ctx.lineWidth = 3;
-      ctx.globalAlpha = 0.35;
-      for (let y = 0; y < 256; y += 12) {
+      // Warm vibrant grain lines
+      ctx.strokeStyle = isLight ? '#f59e0b' : '#b45309';
+      ctx.lineWidth = isLight ? 4 : 5;
+      ctx.globalAlpha = isLight ? 0.45 : 0.6;
+      for (let y = 0; y < 256; y += 14) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.bezierCurveTo(80, y - 6, 160, y + 8, 256, y);
+        ctx.bezierCurveTo(70, y - 8, 170, y + 10, 256, y);
         ctx.stroke();
       }
+
+      // 3D Bevel highlight & shadow for tactile pop
+      ctx.globalAlpha = 0.65;
+      ctx.strokeStyle = isLight ? '#ffffff' : '#fbbf24';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(3, 253);
+      ctx.lineTo(3, 3);
+      ctx.lineTo(253, 3);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#000000';
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(253, 3);
+      ctx.lineTo(253, 253);
+      ctx.lineTo(3, 253);
+      ctx.stroke();
+
       ctx.globalAlpha = 1.0;
-      drawComicBorder('#451a03', 6);
+      drawComicBorder('#292524', 6);
       break;
     }
 
@@ -174,24 +195,29 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
 }
 
 // Procedural cartoon eyes texture for figures
-export function createEyeTexture(mood: 'happy' | 'dizzy' | 'surprised' | 'serious' = 'happy'): THREE.CanvasTexture {
+export function createEyeTexture(
+  mood: 'happy' | 'dizzy' | 'surprised' | 'serious' = 'happy',
+  irisColor: string = '#0284c7'
+): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 128;
   canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
 
+  // White sclera
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.arc(64, 64, 56, 0, Math.PI * 2);
   ctx.fill();
 
+  // Bold black comic outline
   ctx.strokeStyle = '#000000';
-  ctx.lineWidth = 8;
+  ctx.lineWidth = 7;
   ctx.stroke();
 
   if (mood === 'dizzy') {
     ctx.strokeStyle = '#7c3aed';
-    ctx.lineWidth = 8;
+    ctx.lineWidth = 7;
     ctx.beginPath();
     let r = 4;
     let a = 0;
@@ -203,11 +229,13 @@ export function createEyeTexture(mood: 'happy' | 'dizzy' | 'surprised' | 'seriou
     }
     ctx.stroke();
   } else if (mood === 'surprised') {
+    // Wide open shocked pupil
     ctx.fillStyle = '#111827';
     ctx.beginPath();
     ctx.arc(64, 64, 38, 0, Math.PI * 2);
     ctx.fill();
 
+    // Dual highlights
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(52, 50, 14, 0, Math.PI * 2);
@@ -216,23 +244,30 @@ export function createEyeTexture(mood: 'happy' | 'dizzy' | 'surprised' | 'seriou
     ctx.arc(76, 72, 7, 0, Math.PI * 2);
     ctx.fill();
   } else {
-    ctx.fillStyle = '#0f172a';
+    // Large colorful anime iris
+    const irisGrad = ctx.createRadialGradient(64, 64, 10, 64, 64, 38);
+    irisGrad.addColorStop(0, '#38bdf8');
+    irisGrad.addColorStop(0.7, irisColor);
+    irisGrad.addColorStop(1, '#0f172a');
+    ctx.fillStyle = irisGrad;
     ctx.beginPath();
-    ctx.arc(64, 64, 32, 0, Math.PI * 2);
+    ctx.arc(64, 64, 38, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#3b82f6';
-    ctx.lineWidth = 4;
+    // Deep black pupil
+    ctx.fillStyle = '#090d16';
     ctx.beginPath();
-    ctx.arc(64, 64, 28, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.arc(64, 64, 22, 0, Math.PI * 2);
+    ctx.fill();
 
+    // Shiny anime reflections (main glossy spot + secondary twinkle)
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(54, 52, 10, 0, Math.PI * 2);
+    ctx.arc(50, 48, 12, 0, Math.PI * 2);
     ctx.fill();
+
     ctx.beginPath();
-    ctx.arc(72, 70, 5, 0, Math.PI * 2);
+    ctx.arc(76, 74, 6, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -401,5 +436,64 @@ export function createStatusBadgeTexture(
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Procedural cartoon flowing water texture with caustics and foam ripples
+export function createWaterTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+
+  // Deep crystal blue to bright turquoise cyan gradient
+  const grad = ctx.createLinearGradient(0, 0, 512, 512);
+  grad.addColorStop(0, '#0284c7');
+  grad.addColorStop(0.5, '#0ea5e9');
+  grad.addColorStop(1, '#06b6d4');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Stylized cartoon water caustics & foam waves
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.55;
+
+  for (let y = 30; y < 512; y += 48) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= 512; x += 64) {
+      const cy = y + Math.sin((x / 64) * Math.PI) * 14;
+      ctx.lineTo(x, cy);
+    }
+    ctx.stroke();
+  }
+
+  // Soft sparkle glints
+  ctx.fillStyle = '#ffffff';
+  ctx.globalAlpha = 0.85;
+  const glints = [
+    [80, 70, 7],
+    [240, 140, 6],
+    [410, 80, 8],
+    [140, 310, 6],
+    [330, 370, 8],
+    [70, 430, 5],
+    [440, 410, 8],
+    [230, 250, 9],
+  ];
+  for (const [gx, gy, gr] of glints) {
+    ctx.beginPath();
+    ctx.arc(gx, gy, gr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1.0;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(1, 1);
   return texture;
 }

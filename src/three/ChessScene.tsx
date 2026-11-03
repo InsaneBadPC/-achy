@@ -129,8 +129,8 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       powerPreference: 'high-performance',
     });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.25;
+    renderer.toneMapping = THREE.LinearToneMapping;
+    renderer.toneMappingExposure = 1.15;
     renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -155,7 +155,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     const bgColor = bgColors[theme] || 0x0f172a;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.Fog(scene.background, 35, 90);
+    scene.fog = new THREE.Fog(scene.background, 70, 160);
     sceneRef.current = scene;
 
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -177,10 +177,10 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     controlsRef.current = controls;
 
     // Lighting setup
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.4);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x475569, 1.7);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
+    const dirLight = new THREE.DirectionalLight(0xfffaed, 2.4);
     dirLight.position.set(6, 16, 8);
     dirLight.castShadow = !isSoftwareGl;
     dirLight.shadow.mapSize.width = 2048;
@@ -306,10 +306,15 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
         }
       });
 
-      // Subtle water ripple animation on battlefield
+      // Flowing water caustics & gentle ripples on battlefield
       if (bfCtxRef.current) {
         bfCtxRef.current.waterGroup.children.forEach((wMesh, i) => {
-          wMesh.position.y = -0.04 + Math.sin(elapsed * 2 + i * 0.8) * 0.015;
+          const mat = (wMesh as THREE.Mesh).material as THREE.MeshStandardMaterial;
+          if (mat && mat.map) {
+            mat.map.offset.x = (elapsed * 0.04) % 1;
+            mat.map.offset.y = (elapsed * 0.02) % 1;
+          }
+          wMesh.position.y = 0.025 + Math.sin(elapsed * 2.2 + i * 0.8) * 0.006;
         });
       }
 

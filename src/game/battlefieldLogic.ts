@@ -550,7 +550,7 @@ export function advanceBattlefieldTurn(
       catapultCharge,
       catapultPending,
       immobilizedPieces: nextImmobilized,
-      activeTip: tip || prevState.activeTip,
+      activeTip: tip || null,
     },
     tip,
     spawnUpgrades,

@@ -4,6 +4,7 @@
  */
 
 import * as THREE from 'three';
+import { createWaterTexture } from './proceduralTextures';
 import { BattlefieldState } from '../types/battlefield';
 import { getTerrainAt, getHeightAt, coordsToSquare } from '../game/battlefieldData';
 import { TILE_SIZE, BOARD_OFFSET, squareToWorld } from './boardRenderer';
@@ -85,12 +86,20 @@ export function createBattlefieldBoard(state: BattlefieldState): BattlefieldMesh
     metalness: 0.2,
   });
 
+  const waterTex = createWaterTexture();
   const matRiver = new THREE.MeshStandardMaterial({
-    color: 0x0284c7, // Vibrant blue water
+    map: waterTex,
+    color: 0x38bdf8,
     roughness: 0.1,
-    metalness: 0.5,
+    metalness: 0.15,
     transparent: true,
-    opacity: 0.88,
+    opacity: 0.94,
+    depthWrite: true,
+  });
+
+  const matRiverBed = new THREE.MeshStandardMaterial({
+    color: 0x0f172a, // Dark stone riverbed beneath water
+    roughness: 0.9,
   });
 
   const matBridge = new THREE.MeshStandardMaterial({
@@ -133,10 +142,16 @@ export function createBattlefieldBoard(state: BattlefieldState): BattlefieldMesh
       let tileMesh: THREE.Mesh;
 
       if (terrain.id === 'river') {
-        // Recessed water tile
-        const waterGeom = new THREE.BoxGeometry(TILE_SIZE, 0.08, TILE_SIZE);
+        // 1. Dark riverbed base underneath to prevent z-fighting with foundation
+        const bedGeom = new THREE.BoxGeometry(TILE_SIZE, 0.05, TILE_SIZE);
+        const bedMesh = new THREE.Mesh(bedGeom, matRiverBed);
+        bedMesh.position.set(pos.x, -0.01, pos.z);
+        decorGroup.add(bedMesh);
+
+        // 2. Crystal animated water surface safely elevated above riverbed (y=0.025)
+        const waterGeom = new THREE.BoxGeometry(TILE_SIZE - 0.01, 0.04, TILE_SIZE - 0.01);
         tileMesh = new THREE.Mesh(waterGeom, matRiver);
-        tileMesh.position.set(pos.x, -0.04, pos.z);
+        tileMesh.position.set(pos.x, 0.025, pos.z);
         waterGroup.add(tileMesh);
       } else if (terrain.id === 'bridge') {
         // Bridge over water
@@ -264,7 +279,9 @@ export function createBattlefieldBoard(state: BattlefieldState): BattlefieldMesh
 
       tileMesh.receiveShadow = true;
       tileMesh.userData = { row: r, col: c, isSquare: true };
-      containerGroup.add(tileMesh);
+      if (terrain.id !== 'river') {
+        containerGroup.add(tileMesh);
+      }
       terrainMeshes[r][c] = tileMesh;
     }
   }
