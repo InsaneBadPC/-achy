@@ -12,14 +12,18 @@ export type TrapType =
   | 'teleport'     // Teleports to a random empty square
   | 'freeze'       // Frozen for next turn
   | 'swap'         // Swaps positions with a random enemy piece
-  | 'confetti_pop'; // Confetti, grants bubble shield
+  | 'confetti_pop' // Confetti, grants bubble shield
+  | 'tnt'          // Explodes on contact, knocks back and stuns adjacent pieces
+  | 'glue';        // Stuck in sticky slime, movement reduced to 1 step for next turn
 
 export type ItemType =
   | 'rocket_boots'  // One rocket flight: up to 3 squares in any direction, jumping over pieces
   | 'mega_hammer'   // One smash: leap up to 2 squares, stuns adjacent enemies
   | 'bubble_shield' // Protects against next capture
   | 'magic_mirror'  // Reflects the next attack (attacker is destroyed) and blocks bad traps
-  | 'speed_potion'; // Immediate extra turn
+  | 'speed_potion'  // Immediate extra turn
+  | 'lightning_rod' // Stuffs electricity: attacks in full cardinal lines like a rook for 1 turn
+  | 'magnet';       // Pulls nearest bonus item directly to the piece
 
 export interface Piece {
   id: string;
@@ -33,6 +37,7 @@ export interface Piece {
   equippedItem?: ItemType | null;
   wackyScale?: number;
   isDizzy?: boolean;
+  isSlimeStuck?: boolean;
 }
 
 export interface Trap {
@@ -54,7 +59,10 @@ export type MoveEffect =
   | 'shield_block'   // Attack bounced off a bubble shield
   | 'mirror_reflect' // Attacker destroyed by a magic mirror
   | 'hammer_smash'   // Mega hammer shockwave stunned neighbours
-  | 'rocket_jump';   // Rocket boots flight
+  | 'rocket_jump'    // Rocket boots flight
+  | 'lightning_strike' // Lightning rod electro-strike
+  | 'magnet_pull'    // Magnet sucked in items
+  | 'tnt_blast';     // TNT trap explosion
 
 export interface Move {
   from: { row: number; col: number };

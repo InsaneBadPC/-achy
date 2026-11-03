@@ -117,7 +117,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.25;
     renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -142,7 +142,8 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     const bgColor = bgColors[theme] || 0x0f172a;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.Fog(scene.background, 11, 27);
+    // Adjusted Fog: Much farther out so zooming out never darkens or obscures the chessboard!
+    scene.fog = new THREE.Fog(scene.background, 35, 90);
     sceneRef.current = scene;
 
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -158,22 +159,23 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.08;
     controls.maxPolarAngle = Math.PI / 2.05;
-    controls.minDistance = 5;
-    controls.maxDistance = 22;
+    controls.minDistance = 4;
+    controls.maxDistance = 28;
     controls.target.set(0, 0, 0);
     controlsRef.current = controls;
 
-    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x1e293b, 1.2);
+    // Lighting setup with ample ambient & directional coverage
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x334155, 1.4);
     scene.add(hemiLight);
 
-    const dirLight = new THREE.DirectionalLight(0xfff7ed, 2.0);
-    dirLight.position.set(6, 14, 8);
+    const dirLight = new THREE.DirectionalLight(0xfff7ed, 2.2);
+    dirLight.position.set(6, 16, 8);
     dirLight.castShadow = !isSoftwareGl;
     dirLight.shadow.mapSize.width = 2048;
     dirLight.shadow.mapSize.height = 2048;
     dirLight.shadow.camera.near = 1;
-    dirLight.shadow.camera.far = 30;
-    const d = 7;
+    dirLight.shadow.camera.far = 40;
+    const d = 9;
     dirLight.shadow.camera.left = -d;
     dirLight.shadow.camera.right = d;
     dirLight.shadow.camera.top = d;
@@ -182,9 +184,13 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     dirLight.shadow.normalBias = 0.02;
     scene.add(dirLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
-    rimLight.position.set(-8, 6, -8);
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.9);
+    rimLight.position.set(-8, 8, -8);
     scene.add(rimLight);
+
+    const fillLight = new THREE.DirectionalLight(0xfef08a, 0.6);
+    fillLight.position.set(0, -6, 0);
+    scene.add(fillLight);
 
     const boardCtx = createChessboard(theme);
     scene.add(boardCtx.boardGroup);
@@ -210,7 +216,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
       _raycaster.setFromCamera(_mouse, camera);
 
-      // Check intersections with board squares
       const intersects = _raycaster.intersectObjects(boardCtx.boardGroup.children, true);
       for (const hit of intersects) {
         let obj: THREE.Object3D | null = hit.object;
@@ -223,7 +228,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
         }
       }
 
-      // Check intersections with piece meshes
       const pieceObjects: THREE.Object3D[] = [];
       piecesMapRef.current.forEach((model) => pieceObjects.push(model));
       const pieceHits = _raycaster.intersectObjects(pieceObjects, true);
@@ -296,6 +300,14 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
       animManager.update(dt, piecesMapRef.current, boardCtx.particleGroup, time);
 
+      // Make all floating status badges always billboard-face the camera!
+      piecesMapRef.current.forEach((model) => {
+        const badge = model.getObjectByName('statusBadge');
+        if (badge && badge.visible) {
+          badge.quaternion.copy(camera.quaternion);
+        }
+      });
+
       boardCtx.itemsGroup.children.forEach((itGroup) => {
         const { baseY, rotSpeed, phase } = itGroup.userData;
         itGroup.position.y = baseY + Math.sin(time * 3 + phase) * 0.08;
@@ -358,7 +370,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
     }
   }, [activeCameraView, isFlyInActive]);
 
-  // Synchronize 3D Pieces with React Board State & trigger move animations
+  // Synchronize 3D Pieces with React Board State
   useEffect(() => {
     const scene = sceneRef.current;
     const boardCtx = boardCtxRef.current;
@@ -386,7 +398,6 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
 
         updateCharacterState(model, piece);
 
-        // Check if last move animated this piece
         if (
           lastMove &&
           lastMove !== prevLastMoveRef.current &&
@@ -400,6 +411,8 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
               animManager.animateHammerSmash(model, r, c);
             } else if (lastMove.effect === 'rocket_jump') {
               animManager.animateRocketJump(model, r, c);
+            } else if (lastMove.effect === 'lightning_strike') {
+              animManager.animateLightningStrike(model, r, c);
             } else if (lastMove.effect === 'shield_block' && lastMove.attackTarget) {
               animManager.animateBump(model, lastMove.attackTarget.row, lastMove.attackTarget.col);
             } else if (lastMove.trapTriggered) {
@@ -420,7 +433,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
       }
     }
 
-    // Handle captures
+    // Handle funny captures with random comic animations!
     piecesMap.forEach((model, id) => {
       if (!currentPieceIds.has(id)) {
         spawnConfettiBurst(boardCtx, {
@@ -429,7 +442,7 @@ export const ChessScene: React.FC<ChessSceneProps> = ({
           z: model.position.z,
         });
 
-        animManager.animateCaptureKnockback(model, () => {
+        animManager.animateCaptureKnockback(model, lastMove?.piece.type || 'pawn', () => {
           scene.remove(model);
           piecesMap.delete(id);
         });

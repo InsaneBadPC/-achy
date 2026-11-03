@@ -14,7 +14,7 @@ export const TRAP_CONFIG: Record<
   banana: {
     name: 'Banánová slupka',
     emoji: '🍌',
-    description: 'Figurka uklouzla, udělala otočku o 360° a sjela o políčko dál (pokud tam není král)!',
+    description: 'Figurka uklouzla, udělala otočku o 360° a sjela o políčko dál!',
     color: '#eab308',
   },
   spring: {
@@ -47,48 +47,78 @@ export const TRAP_CONFIG: Record<
     description: 'Bum! Z figurky vystřelily oslavné konfety a získala ochranný bublinový štít!',
     color: '#10b981',
   },
+  tnt: {
+    name: 'TNT Výbušnina',
+    emoji: '💣',
+    description: 'KABOOM! Obrovský výbuch otřese šachovnicí a omráčí všechny okolní figurky!',
+    color: '#ef4444',
+  },
+  glue: {
+    name: 'Lepivý sliz',
+    emoji: '🧪',
+    description: 'Plác! Figurka uvízla v lepkavém zeleném slizu a její pohyb je na 1 tah omezen na 1 pole.',
+    color: '#84cc16',
+  },
 };
 
 export const ITEM_CONFIG: Record<
   ItemType,
-  { name: string; emoji: string; description: string; color: string }
+  { name: string; emoji: string; description: string; color: string; durationText: string }
 > = {
   rocket_boots: {
     name: 'Raketové trysky',
     emoji: '🚀',
     description: 'Umožní figurce přeletět překážky a skočit až o 3 pole kterýmkoliv směrem!',
     color: '#ef4444',
+    durationText: '1 tah (použití skokem)',
   },
   mega_hammer: {
     name: 'Obří kreslené kladivo',
     emoji: '🔨',
     description: 'Drtivý skok do okruhu 2 polí! Při dopadu tlaková vlna omráčí okolní nepřátele.',
     color: '#f59e0b',
+    durationText: '1 tah (při útoku)',
   },
   bubble_shield: {
     name: 'Bublinový štít',
     emoji: '🛡️',
     description: 'Nafoukne kolem figurky energetickou bublinu, která odrazí příští útok soupeře!',
     color: '#06b6d4',
+    durationText: 'Do 1. zásahu soupeřem',
   },
   magic_mirror: {
     name: 'Kouzelné zrcadlo',
     emoji: '🪞',
     description: 'Chrání před pastmi a pokud na figurku zaútočí soupeř, odrazí útok a vyhodí útočníka!',
     color: '#8b5cf6',
+    durationText: 'Do 1. napadení',
   },
   speed_potion: {
     name: 'Lektvar zrychlení',
     emoji: '⚡',
     description: 'Okamžitý příval turbo energie – hráč po tomto tahu hraje hned ještě jednou!',
     color: '#22c55e',
+    durationText: 'Okamžitý tah navíc',
+  },
+  lightning_rod: {
+    name: 'Blesková hůl',
+    emoji: '⚡',
+    description: 'Nabije figurku elektřinou! Umožní provést dalekonosný útok po celé linii jako věž.',
+    color: '#eab308',
+    durationText: '1 tah (paprsek věže)',
+  },
+  magnet: {
+    name: 'Super Magnet',
+    emoji: '🧲',
+    description: 'Přitáhne nejbližší bonusy a předměty ze šachovnice přímo pod nohy!',
+    color: '#ec4899',
+    durationText: 'Okamžitý efekt',
   },
 };
 
-// Generate initial traps (only on neutral middle rows 2, 3, 4, 5)
 export function generateInitialTraps(count: number = 6): Trap[] {
   const traps: Trap[] = [];
-  const trapTypes: TrapType[] = ['banana', 'spring', 'teleport', 'freeze', 'swap', 'confetti_pop'];
+  const trapTypes: TrapType[] = ['banana', 'spring', 'teleport', 'freeze', 'swap', 'confetti_pop', 'tnt', 'glue'];
   const possibleCoords: { r: number; c: number }[] = [];
 
   for (let r = 2; r <= 5; r++) {
@@ -115,7 +145,6 @@ export function generateInitialTraps(count: number = 6): Trap[] {
   return traps;
 }
 
-// Generate random bonus items (including all 5 types!)
 export function generateBonusItem(
   board: (Piece | null)[][],
   existingItems: BonusItem[],
@@ -127,6 +156,8 @@ export function generateBonusItem(
     'bubble_shield',
     'magic_mirror',
     'speed_potion',
+    'lightning_rod',
+    'magnet',
   ];
   const emptyCoords: { r: number; c: number }[] = [];
 
@@ -160,6 +191,7 @@ export interface TrapResolutionResult {
   updatedPiece: Piece;
   swappedTarget?: { piece: Piece; fromRow: number; fromCol: number; toRow: number; toCol: number };
   bonusCaptured?: Piece | null;
+  stunnedVictims?: { row: number; col: number }[];
   notification: FloatingNotification | null;
   logText: string;
 }
@@ -177,15 +209,15 @@ export function handleTrapTrigger(
   const info = TRAP_CONFIG[trap.type];
   let swappedTarget: TrapResolutionResult['swappedTarget'] = undefined;
   let bonusCaptured: Piece | null = null;
+  const stunnedVictims: { row: number; col: number }[] = [];
 
-  // Magic mirror blocks negative traps!
   if (
     updatedPiece.equippedItem === 'magic_mirror' &&
-    (trap.type === 'banana' || trap.type === 'freeze' || trap.type === 'teleport')
+    (trap.type === 'banana' || trap.type === 'freeze' || trap.type === 'teleport' || trap.type === 'tnt' || trap.type === 'glue')
   ) {
     soundEngine.playShield();
-    updatedPiece.equippedItem = null; // Consume mirror
-    updatedPiece.shield = true; // Grant shield bonus
+    updatedPiece.equippedItem = null;
+    updatedPiece.shield = true;
     return {
       finalRow,
       finalCol,
@@ -223,7 +255,6 @@ export function handleTrapTrigger(
           finalCol = slipC;
           logText += ' Při uklouznutí srazil soupeřovu figurku jako kuželku!';
         } else {
-          // Try sideways slip if front is blocked
           const sideCols = [trap.col - 1, trap.col + 1];
           const freeCol = sideCols.find((c) => isInsideBoard(trap.row, c) && !board[trap.row][c]);
           if (freeCol !== undefined) {
@@ -242,7 +273,6 @@ export function handleTrapTrigger(
       soundEngine.playSpring();
       const stepR = dr !== 0 ? Math.sign(dr) : piece.color === 'white' ? -1 : 1;
       const stepC = dc !== 0 ? Math.sign(dc) : 0;
-      // Try 2 squares forward, fallback to 1 square forward
       const jump2R = trap.row + stepR * 2;
       const jump2C = trap.col + stepC * 2;
       const jump1R = trap.row + stepR;
@@ -295,11 +325,9 @@ export function handleTrapTrigger(
     case 'freeze': {
       soundEngine.playFreeze();
       if (piece.type === 'king') {
-        // Kings are only chilled (freezing a king could cause an unfair instant mate)
         updatedPiece.isDizzy = true;
         logText += ' Král se otřásl zimou, ale královský plášť ho zahřál!';
       } else {
-        // Frozen for the owner's next turn (decremented at the end of that turn)
         updatedPiece.frozenTurns = 1;
         logText += ' Celý zamrzl v kostce ledu a příští tah vynechává!';
       }
@@ -345,6 +373,38 @@ export function handleTrapTrigger(
       logText += ' Oslava! Získal ochranný bublinový štít!';
       break;
     }
+
+    case 'tnt': {
+      soundEngine.playHammerSmash();
+      updatedPiece.isDizzy = true;
+      // Stun all adjacent pieces
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue;
+          const nr = trap.row + dr;
+          const nc = trap.col + dc;
+          if (isInsideBoard(nr, nc)) {
+            const victim = board[nr][nc];
+            if (victim) {
+              victim.isDizzy = true;
+              if (victim.type !== 'king') {
+                victim.frozenTurns = 1;
+              }
+              stunnedVictims.push({ row: nr, col: nc });
+            }
+          }
+        }
+      }
+      logText += ' KABOOM! Tlaková vlna omráčila všechny okolo!';
+      break;
+    }
+
+    case 'glue': {
+      soundEngine.playStep();
+      updatedPiece.isSlimeStuck = true;
+      logText += ' Plác! Figurka uvízla v lepkavém slizu a na 1 tah může udělat jen 1 krok!';
+      break;
+    }
   }
 
   const effectText = logText.substring(logText.indexOf(info.name) + info.name.length + 1).trim();
@@ -361,6 +421,7 @@ export function handleTrapTrigger(
     updatedPiece,
     swappedTarget,
     bonusCaptured,
+    stunnedVictims,
     notification,
     logText,
   };

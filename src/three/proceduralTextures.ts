@@ -12,7 +12,6 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  // Comic border helper
   const drawComicBorder = (borderColor: string = '#000000', lineWidth: number = 8) => {
     ctx.strokeStyle = borderColor;
     ctx.lineWidth = lineWidth;
@@ -21,7 +20,6 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
 
   switch (theme) {
     case 'royal_wood': {
-      // Warm medieval castle wood grain
       const baseColor = isLight ? '#fde68a' : '#92400e';
       ctx.fillStyle = baseColor;
       ctx.fillRect(0, 0, 256, 256);
@@ -41,11 +39,9 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'volcano_dungeon': {
-      // Molten magma & cracked black obsidian
       ctx.fillStyle = isLight ? '#292524' : '#1c1917';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Fiery lava fissures
       ctx.strokeStyle = isLight ? '#ea580c' : '#dc2626';
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -55,7 +51,6 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
       ctx.lineTo(230, 256);
       ctx.stroke();
 
-      // Lava glow dots
       ctx.fillStyle = '#facc15';
       ctx.beginPath();
       ctx.arc(80, 90, 6, 0, Math.PI * 2);
@@ -67,11 +62,9 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'magic_crystal': {
-      // Glacial frosted ice & mystical crystal
       ctx.fillStyle = isLight ? '#e0f2fe' : '#7dd3fc';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Ice crystal facets
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 4;
       ctx.globalAlpha = 0.5;
@@ -89,16 +82,13 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'cyber_neon': {
-      // Synthwave digital grid
       ctx.fillStyle = isLight ? '#0f172a' : '#020617';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Neon grid lines
       ctx.strokeStyle = isLight ? '#06b6d4' : '#d946ef';
       ctx.lineWidth = 4;
       ctx.strokeRect(10, 10, 236, 236);
 
-      // Circuit node in center
       ctx.fillStyle = isLight ? '#22d3ee' : '#e879f9';
       ctx.beginPath();
       ctx.arc(128, 128, 10, 0, Math.PI * 2);
@@ -109,11 +99,9 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'pirate_island': {
-      // Tropical sand and turquoise ocean waves
       ctx.fillStyle = isLight ? '#fef08a' : '#0d9488';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Palm leaf / wave silhouette
       ctx.strokeStyle = isLight ? '#eab308' : '#14b8a6';
       ctx.lineWidth = 4;
       ctx.globalAlpha = 0.4;
@@ -127,11 +115,9 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'candy_land': {
-      // Bubblegum pink & sweet mint marshmallow
       ctx.fillStyle = isLight ? '#fbcfe8' : '#a7f3d0';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Colorful sugar sprinkles
       const colors = ['#f43f5e', '#3b82f6', '#eab308', '#8b5cf6'];
       for (let i = 0; i < 8; i++) {
         ctx.fillStyle = colors[i % colors.length];
@@ -145,11 +131,9 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'space_station': {
-      // Lunar meteorite rock & alien green circuits
       ctx.fillStyle = isLight ? '#334155' : '#1e293b';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Alien energy conduit
       ctx.strokeStyle = '#4ade80';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -168,11 +152,9 @@ export function createBoardSquareTexture(isLight: boolean, theme: string = 'roya
     }
 
     case 'spooky_graveyard': {
-      // Haunted cobblestone & eerie purple mist
       ctx.fillStyle = isLight ? '#475569' : '#3b0764';
       ctx.fillRect(0, 0, 256, 256);
 
-      // Cobblestone cracks
       ctx.strokeStyle = isLight ? '#94a3b8' : '#c084fc';
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -198,19 +180,16 @@ export function createEyeTexture(mood: 'happy' | 'dizzy' | 'surprised' | 'seriou
   canvas.height = 128;
   const ctx = canvas.getContext('2d')!;
 
-  // Sclera (white eye)
   ctx.fillStyle = '#ffffff';
   ctx.beginPath();
   ctx.arc(64, 64, 56, 0, Math.PI * 2);
   ctx.fill();
 
-  // Bold black comic eye rim
   ctx.strokeStyle = '#000000';
   ctx.lineWidth = 8;
   ctx.stroke();
 
   if (mood === 'dizzy') {
-    // Spiral cartoon dizzy eye!
     ctx.strokeStyle = '#7c3aed';
     ctx.lineWidth = 8;
     ctx.beginPath();
@@ -224,13 +203,11 @@ export function createEyeTexture(mood: 'happy' | 'dizzy' | 'surprised' | 'seriou
     }
     ctx.stroke();
   } else if (mood === 'surprised') {
-    // Huge dilated pupil
     ctx.fillStyle = '#111827';
     ctx.beginPath();
     ctx.arc(64, 64, 38, 0, Math.PI * 2);
     ctx.fill();
 
-    // Big shiny reflection
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(52, 50, 14, 0, Math.PI * 2);
@@ -239,20 +216,17 @@ export function createEyeTexture(mood: 'happy' | 'dizzy' | 'surprised' | 'seriou
     ctx.arc(76, 72, 7, 0, Math.PI * 2);
     ctx.fill();
   } else {
-    // Cute big anime pupil with double specular glint
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
     ctx.arc(64, 64, 32, 0, Math.PI * 2);
     ctx.fill();
 
-    // Iris color ring
     ctx.strokeStyle = '#3b82f6';
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.arc(64, 64, 28, 0, Math.PI * 2);
     ctx.stroke();
 
-    // Shiny glints
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(54, 52, 10, 0, Math.PI * 2);
@@ -276,20 +250,17 @@ export function createTrapGlyphTexture(trapType: string, revealed: boolean): THR
 
   ctx.clearRect(0, 0, 128, 128);
 
-  // Outer glowing runic circle
   ctx.strokeStyle = revealed ? '#f59e0b' : '#a855f7';
   ctx.lineWidth = 7;
   ctx.beginPath();
   ctx.arc(64, 64, 54, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Subtle pulsing disc
   ctx.fillStyle = revealed ? 'rgba(245, 158, 11, 0.25)' : 'rgba(168, 85, 247, 0.3)';
   ctx.beginPath();
   ctx.arc(64, 64, 50, 0, Math.PI * 2);
   ctx.fill();
 
-  // Glyph symbol in center
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 50px Fredoka, sans-serif';
   ctx.textAlign = 'center';
@@ -305,6 +276,8 @@ export function createTrapGlyphTexture(trapType: string, revealed: boolean): THR
       freeze: '🧊',
       swap: '🔄',
       confetti_pop: '🎉',
+      tnt: '💣',
+      glue: '🧪',
     };
     ctx.fillText(emojis[trapType] || '💥', 64, 68);
   }
@@ -323,7 +296,6 @@ export function createItemCoinTexture(itemType: string): THREE.CanvasTexture {
 
   ctx.clearRect(0, 0, 128, 128);
 
-  // Golden coin base
   const grad = ctx.createRadialGradient(64, 64, 10, 64, 64, 60);
   grad.addColorStop(0, '#fef08a');
   grad.addColorStop(0.7, '#eab308');
@@ -337,19 +309,95 @@ export function createItemCoinTexture(itemType: string): THREE.CanvasTexture {
   ctx.lineWidth = 6;
   ctx.stroke();
 
-  // Icon in center
   const icons: Record<string, string> = {
     rocket_boots: '🚀',
     mega_hammer: '🔨',
     bubble_shield: '🛡️',
     magic_mirror: '🪞',
     speed_potion: '⚡',
+    lightning_rod: '⚡',
+    magnet: '🧲',
   };
 
   ctx.font = '48px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(icons[itemType] || '⭐', 64, 68);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// Procedural Floating Status Badge Texture (Shown directly above a piece)
+export function createStatusBadgeTexture(
+  badgeType: 'item' | 'frozen' | 'shield' | 'glue' | 'dizzy',
+  infoText: string,
+  emoji: string,
+  color: string = '#f59e0b'
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+
+  ctx.clearRect(0, 0, 256, 128);
+
+  // Rounded pill background
+  const x = 12, y = 14, w = 232, h = 90, r = 24;
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Vibrant border
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  // Emoji icon
+  ctx.font = '36px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(emoji, 26, 58);
+
+  // Title text & duration
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px Fredoka, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(infoText.length > 12 ? infoText.slice(0, 12) + '…' : infoText, 72, 45);
+
+  ctx.fillStyle = color;
+  ctx.font = 'bold 16px Fredoka, sans-serif';
+  const subtitle =
+    badgeType === 'frozen'
+      ? '1 kolo vynechává'
+      : badgeType === 'shield'
+      ? '1 zásah odrazí'
+      : badgeType === 'glue'
+      ? '1 krok max'
+      : badgeType === 'dizzy'
+      ? 'Zatočená hlava'
+      : 'Aktivní zbraň';
+  ctx.fillText(subtitle, 72, 72);
+
+  // Pointer triangle
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(116, 104);
+  ctx.lineTo(140, 104);
+  ctx.lineTo(128, 120);
+  ctx.closePath();
+  ctx.fill();
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;

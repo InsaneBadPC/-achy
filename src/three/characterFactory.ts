@@ -4,10 +4,10 @@
  */
 
 import * as THREE from 'three';
-import { PieceColor, PieceType } from '../types/game';
-import { createEyeTexture } from './proceduralTextures';
+import { PieceColor, PieceType, ItemType } from '../types/game';
+import { createEyeTexture, createStatusBadgeTexture } from './proceduralTextures';
+import { ITEM_CONFIG } from '../game/trapsAndItems';
 
-// Shared eye textures
 const eyeTextureHappy = createEyeTexture('happy');
 const eyeTextureDizzy = createEyeTexture('dizzy');
 const eyeTextureSurprised = createEyeTexture('surprised');
@@ -31,42 +31,40 @@ export function createCharacterModel(
 
   const isWhite = color === 'white';
 
-  // Palette definitions
   const bodyColor = isWhite ? 0xf8fafc : 0x1e293b;
   const accentColor = isWhite ? 0x38bdf8 : 0xec4899;
   const goldColor = 0xf59e0b;
   const skinColor = isWhite ? 0xfde047 : 0xa78bfa;
   const metalColor = isWhite ? 0xe2e8f0 : 0x475569;
 
-  // Modern PBR materials
   const bodyMat = new THREE.MeshStandardMaterial({
     color: bodyColor,
-    roughness: 0.3,
+    roughness: 0.28,
     metalness: 0.15,
   });
 
   const accentMat = new THREE.MeshStandardMaterial({
     color: accentColor,
-    roughness: 0.25,
-    metalness: 0.25,
+    roughness: 0.2,
+    metalness: 0.35,
   });
 
   const goldMat = new THREE.MeshStandardMaterial({
     color: goldColor,
-    roughness: 0.2,
-    metalness: 0.85,
+    roughness: 0.18,
+    metalness: 0.88,
   });
 
   const skinMat = new THREE.MeshStandardMaterial({
     color: skinColor,
-    roughness: 0.5,
+    roughness: 0.45,
     metalness: 0.05,
   });
 
   const metalMat = new THREE.MeshStandardMaterial({
     color: metalColor,
-    roughness: 0.3,
-    metalness: 0.7,
+    roughness: 0.25,
+    metalness: 0.75,
   });
 
   const eyeMat = new THREE.MeshBasicMaterial({
@@ -74,7 +72,6 @@ export function createCharacterModel(
     transparent: true,
   });
 
-  // Helper to add cartoon googly eyes
   const addGooglyEyes = (
     parent: THREE.Object3D,
     y: number,
@@ -94,25 +91,23 @@ export function createCharacterModel(
     parent.add(rightEye);
   };
 
-  // Base pedestal
-  const baseGeom = new THREE.CylinderGeometry(0.36, 0.42, 0.12, 24);
+  // Base Pedestal with double bevel
+  const baseGeom = new THREE.CylinderGeometry(0.36, 0.44, 0.14, 24);
   const baseMesh = new THREE.Mesh(baseGeom, metalMat);
-  baseMesh.position.y = 0.06;
+  baseMesh.position.y = 0.07;
   baseMesh.castShadow = true;
   baseMesh.receiveShadow = true;
   root.add(baseMesh);
 
-  // Decorative ring on base
-  const ringGeom = new THREE.TorusGeometry(0.38, 0.03, 12, 24);
+  const ringGeom = new THREE.TorusGeometry(0.39, 0.035, 12, 24);
   const ringMesh = new THREE.Mesh(ringGeom, goldMat);
   ringMesh.rotation.x = Math.PI / 2;
-  ringMesh.position.y = 0.12;
+  ringMesh.position.y = 0.14;
   root.add(ringMesh);
 
-  // Subgroups for animations
   const torsoGroup = new THREE.Group();
   torsoGroup.name = 'torsoGroup';
-  torsoGroup.position.y = 0.12;
+  torsoGroup.position.y = 0.14;
   root.add(torsoGroup);
 
   const headGroup = new THREE.Group();
@@ -120,7 +115,7 @@ export function createCharacterModel(
 
   switch (type) {
     case 'pawn': {
-      // --- PAWN: Cute Goblin / Minion ---
+      // --- PAWN: Cute Goblin Minion ---
       const bellyGeom = new THREE.SphereGeometry(0.32, 20, 20);
       const belly = new THREE.Mesh(bellyGeom, bodyMat);
       belly.position.y = 0.28;
@@ -155,6 +150,17 @@ export function createCharacterModel(
       pompom.position.y = 0.36;
       headGroup.add(pompom);
 
+      // Cute ears
+      const earG = new THREE.ConeGeometry(0.06, 0.15, 8);
+      const leftEar = new THREE.Mesh(earG, skinMat);
+      leftEar.position.set(-0.28, 0.05, 0);
+      leftEar.rotation.z = 1.2;
+      headGroup.add(leftEar);
+      const rightEar = new THREE.Mesh(earG, skinMat);
+      rightEar.position.set(0.28, 0.05, 0);
+      rightEar.rotation.z = -1.2;
+      headGroup.add(rightEar);
+
       addGooglyEyes(headGroup, 0.04, 0.22, 0.1, 0.12);
 
       const clubGroup = new THREE.Group();
@@ -173,7 +179,7 @@ export function createCharacterModel(
     }
 
     case 'knight': {
-      // --- KNIGHT: Bouncy Unicorn / Steed ---
+      // --- KNIGHT: Bouncy Unicorn Steed ---
       const springGeom = new THREE.CylinderGeometry(0.24, 0.28, 0.3, 16);
       const spring = new THREE.Mesh(springGeom, accentMat);
       spring.position.y = 0.22;
@@ -229,7 +235,7 @@ export function createCharacterModel(
     }
 
     case 'bishop': {
-      // --- BISHOP: Whimsical Wizard / Jester ---
+      // --- BISHOP: Whimsical Wizard ---
       const robeGeom = new THREE.ConeGeometry(0.35, 0.75, 20);
       const robe = new THREE.Mesh(robeGeom, bodyMat);
       robe.position.y = 0.42;
@@ -282,7 +288,7 @@ export function createCharacterModel(
     }
 
     case 'rook': {
-      // --- ROOK: Living Castle Golem ---
+      // --- ROOK: Castle Golem ---
       const stoneMat = new THREE.MeshStandardMaterial({
         color: isWhite ? 0x94a3b8 : 0x334155,
         roughness: 0.8,
@@ -334,7 +340,7 @@ export function createCharacterModel(
     }
 
     case 'queen': {
-      // --- QUEEN: Sassy Royal Diva ---
+      // --- QUEEN: Royal Diva ---
       const dressGeom = new THREE.CylinderGeometry(0.2, 0.38, 0.75, 20);
       const dress = new THREE.Mesh(dressGeom, bodyMat);
       dress.position.y = 0.44;
@@ -378,7 +384,7 @@ export function createCharacterModel(
     }
 
     case 'king': {
-      // --- KING: Chubby Silly Monarch ---
+      // --- KING: Monarch ---
       const bellyGeom = new THREE.SphereGeometry(0.38, 20, 20);
       const belly = new THREE.Mesh(bellyGeom, bodyMat);
       belly.position.y = 0.44;
@@ -453,7 +459,7 @@ export function createCharacterModel(
     }
   }
 
-  // Bubble shield mesh (with iridescent shimmer)
+  // 1. Bubble shield mesh
   const shieldGeom = new THREE.SphereGeometry(0.58, 20, 20);
   const shieldMat = new THREE.MeshPhysicalMaterial({
     color: 0x38bdf8,
@@ -470,7 +476,7 @@ export function createCharacterModel(
   shieldMesh.visible = false;
   root.add(shieldMesh);
 
-  // Ice block mesh
+  // 2. Ice block mesh
   const iceGeom = new THREE.BoxGeometry(0.85, 1.15, 0.85);
   const iceMat = new THREE.MeshPhysicalMaterial({
     color: 0xa5f3fc,
@@ -485,7 +491,20 @@ export function createCharacterModel(
   iceMesh.visible = false;
   root.add(iceMesh);
 
-  // Mega Hammer 3D attachment
+  // 3. Slime glue pool around feet
+  const slimeGeom = new THREE.CylinderGeometry(0.48, 0.55, 0.06, 16);
+  const slimeMat = new THREE.MeshStandardMaterial({
+    color: 0x84cc16,
+    roughness: 0.2,
+    metalness: 0.1,
+  });
+  const slimeMesh = new THREE.Mesh(slimeGeom, slimeMat);
+  slimeMesh.name = 'slimeGlue';
+  slimeMesh.position.y = 0.03;
+  slimeMesh.visible = false;
+  root.add(slimeMesh);
+
+  // 4. Mega Hammer 3D attachment
   const hammerGroup = new THREE.Group();
   hammerGroup.name = 'itemHammer';
   const hammerHandle = new THREE.Mesh(
@@ -504,7 +523,7 @@ export function createCharacterModel(
   hammerGroup.visible = false;
   root.add(hammerGroup);
 
-  // Rocket Boots 3D attachment
+  // 5. Rocket Boots 3D attachment
   const rocketsGroup = new THREE.Group();
   rocketsGroup.name = 'itemRockets';
   const rocketMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.4, roughness: 0.3 });
@@ -520,7 +539,7 @@ export function createCharacterModel(
   rocketsGroup.visible = false;
   root.add(rocketsGroup);
 
-  // Magic Mirror 3D attachment (floating glowing mirror on side)
+  // 6. Magic Mirror 3D attachment
   const mirrorGroup = new THREE.Group();
   mirrorGroup.name = 'itemMirror';
   const mirrorFrame = new THREE.Mesh(
@@ -538,7 +557,19 @@ export function createCharacterModel(
   mirrorGroup.visible = false;
   root.add(mirrorGroup);
 
-  // Stun / Dizzy Stars halo
+  // 7. Lightning Rod 3D attachment
+  const lightningGroup = new THREE.Group();
+  lightningGroup.name = 'itemLightning';
+  const rodPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 8), goldMat);
+  const rodTop = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), new THREE.MeshStandardMaterial({ color: 0xfacc15, emissive: 0xeab308, emissiveIntensity: 0.6 }));
+  rodTop.position.y = 0.38;
+  lightningGroup.add(rodPole);
+  lightningGroup.add(rodTop);
+  lightningGroup.position.set(-0.35, 0.45, 0.1);
+  lightningGroup.visible = false;
+  root.add(lightningGroup);
+
+  // 8. Stun / Dizzy Stars halo
   const starsGroup = new THREE.Group();
   starsGroup.name = 'dizzyStars';
   const starGeom = new THREE.OctahedronGeometry(0.06);
@@ -552,7 +583,15 @@ export function createCharacterModel(
   starsGroup.visible = false;
   root.add(starsGroup);
 
-  // Face rotation
+  // 9. Floating Status Badge Sprite / Plane directly above piece head!
+  const statusBadgePlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.9, 0.45),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+  );
+  statusBadgePlane.name = 'statusBadge';
+  statusBadgePlane.position.set(0, 1.45, 0);
+  root.add(statusBadgePlane);
+
   root.rotation.y = isWhite ? 0 : Math.PI;
 
   return root;
@@ -560,37 +599,37 @@ export function createCharacterModel(
 
 export function updateCharacterState(
   model: THREE.Group,
-  piece: { frozenTurns?: number; shield?: boolean; isDizzy?: boolean; equippedItem?: string | null }
+  piece: {
+    frozenTurns?: number;
+    shield?: boolean;
+    isDizzy?: boolean;
+    isSlimeStuck?: boolean;
+    equippedItem?: ItemType | null;
+  }
 ) {
   const shield = model.getObjectByName('bubbleShield');
-  if (shield) {
-    shield.visible = !!piece.shield;
-  }
+  if (shield) shield.visible = !!piece.shield;
 
   const ice = model.getObjectByName('iceBlock');
-  if (ice) {
-    ice.visible = (piece.frozenTurns || 0) > 0;
-  }
+  if (ice) ice.visible = (piece.frozenTurns || 0) > 0;
+
+  const slime = model.getObjectByName('slimeGlue');
+  if (slime) slime.visible = !!piece.isSlimeStuck;
 
   const hammer = model.getObjectByName('itemHammer');
-  if (hammer) {
-    hammer.visible = piece.equippedItem === 'mega_hammer';
-  }
+  if (hammer) hammer.visible = piece.equippedItem === 'mega_hammer';
 
   const rockets = model.getObjectByName('itemRockets');
-  if (rockets) {
-    rockets.visible = piece.equippedItem === 'rocket_boots';
-  }
+  if (rockets) rockets.visible = piece.equippedItem === 'rocket_boots';
 
   const mirror = model.getObjectByName('itemMirror');
-  if (mirror) {
-    mirror.visible = piece.equippedItem === 'magic_mirror';
-  }
+  if (mirror) mirror.visible = piece.equippedItem === 'magic_mirror';
+
+  const lightning = model.getObjectByName('itemLightning');
+  if (lightning) lightning.visible = piece.equippedItem === 'lightning_rod';
 
   const dizzyStars = model.getObjectByName('dizzyStars');
-  if (dizzyStars) {
-    dizzyStars.visible = !!piece.isDizzy;
-  }
+  if (dizzyStars) dizzyStars.visible = !!piece.isDizzy;
 
   const eyeLeft = model.getObjectByName('eyeLeft') as THREE.Mesh;
   const eyeRight = model.getObjectByName('eyeRight') as THREE.Mesh;
@@ -601,5 +640,59 @@ export function updateCharacterState(
     (eyeRight.material as THREE.MeshBasicMaterial).map = eyeMat;
     (eyeLeft.material as THREE.MeshBasicMaterial).needsUpdate = true;
     (eyeRight.material as THREE.MeshBasicMaterial).needsUpdate = true;
+  }
+
+  // Update Floating Status Badge
+  const badgeMesh = model.getObjectByName('statusBadge') as THREE.Mesh;
+  if (badgeMesh) {
+    let showBadge = false;
+    let badgeType: 'item' | 'frozen' | 'shield' | 'glue' | 'dizzy' = 'item';
+    let text = '';
+    let emoji = '';
+    let color = '#f59e0b';
+
+    if (piece.equippedItem) {
+      showBadge = true;
+      badgeType = 'item';
+      const itemInfo = ITEM_CONFIG[piece.equippedItem];
+      text = itemInfo.name;
+      emoji = itemInfo.emoji;
+      color = itemInfo.color;
+    } else if (piece.shield) {
+      showBadge = true;
+      badgeType = 'shield';
+      text = 'Bublinový štít';
+      emoji = '🛡️';
+      color = '#38bdf8';
+    } else if (piece.frozenTurns && piece.frozenTurns > 0) {
+      showBadge = true;
+      badgeType = 'frozen';
+      text = 'Zmrzlý v ledu';
+      emoji = '🧊';
+      color = '#67e8f9';
+    } else if (piece.isSlimeStuck) {
+      showBadge = true;
+      badgeType = 'glue';
+      text = 'Zalepen v slizu';
+      emoji = '🧪';
+      color = '#84cc16';
+    } else if (piece.isDizzy) {
+      showBadge = true;
+      badgeType = 'dizzy';
+      text = 'Omráčený';
+      emoji = '💫';
+      color = '#facc15';
+    }
+
+    if (showBadge) {
+      const tex = createStatusBadgeTexture(badgeType, text, emoji, color);
+      const mat = badgeMesh.material as THREE.MeshBasicMaterial;
+      mat.map = tex;
+      mat.opacity = 0.95;
+      mat.needsUpdate = true;
+      badgeMesh.visible = true;
+    } else {
+      badgeMesh.visible = false;
+    }
   }
 }

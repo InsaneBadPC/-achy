@@ -81,19 +81,61 @@ export function getPseudoLegalMoves(
   }
 
   const moves: { row: number; col: number }[] = [];
-  const { row, col, color, type, equippedItem } = piece;
+  const { row, col, color, type, equippedItem, isSlimeStuck } = piece;
   const isWhite = color === 'white';
   const forwardDir = isWhite ? -1 : 1;
 
+  // If stuck in glue, piece can only move 1 square in any adjacent direction
+  if (isSlimeStuck) {
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = row + dr;
+        const nc = col + dc;
+        if (isInsideBoard(nr, nc)) {
+          const target = board[nr][nc];
+          if (!target || target.color !== color) {
+            moves.push({ row: nr, col: nc });
+          }
+        }
+      }
+    }
+    return moves;
+  }
+
   const hasRocket = checkSpecialItems && equippedItem === 'rocket_boots';
   const hasHammer = checkSpecialItems && equippedItem === 'mega_hammer';
+  const hasLightning = checkSpecialItems && equippedItem === 'lightning_rod';
+
+  // LIGHTNING ROD: Gives full cardinal rook beams to any piece!
+  if (hasLightning) {
+    const cardinalDirs: [number, number][] = [
+      [-1, 0], [1, 0], [0, -1], [0, 1]
+    ];
+    for (const [dr, dc] of cardinalDirs) {
+      let r = row + dr;
+      let c = col + dc;
+      while (isInsideBoard(r, c)) {
+        const destPiece = board[r][c];
+        if (!destPiece) {
+          moves.push({ row: r, col: c });
+        } else {
+          if (destPiece.color !== color) {
+            moves.push({ row: r, col: c });
+          }
+          break;
+        }
+        r += dr;
+        c += dc;
+      }
+    }
+  }
 
   // MEGA HAMMER POWER: Can smash any square in a 2-square radius or leap & crush!
   if (hasHammer) {
     for (let dr = -2; dr <= 2; dr++) {
       for (let dc = -2; dc <= 2; dc++) {
         if (dr === 0 && dc === 0) continue;
-        // Allow 1-step all around + 2-step cardinal/diagonal leaps
         if (Math.abs(dr) <= 1 || Math.abs(dc) <= 1 || Math.abs(dr) === Math.abs(dc)) {
           const hr = row + dr;
           const hc = col + dc;
@@ -143,7 +185,7 @@ export function getPseudoLegalMoves(
             moves.push({ row: r, col: c });
           }
           if (!hasRocket) {
-            break; // Stop at collision unless rocket boots let you jump over!
+            break;
           }
         }
         r += dr;
@@ -248,7 +290,6 @@ export function getPseudoLegalMoves(
   return uniqueMoves;
 }
 
-// Find position of king
 export function findKing(board: (Piece | null)[][], color: PieceColor): { row: number; col: number } | null {
   for (let r = 0; r < BOARD_SIZE; r++) {
     for (let c = 0; c < BOARD_SIZE; c++) {
@@ -261,7 +302,6 @@ export function findKing(board: (Piece | null)[][], color: PieceColor): { row: n
   return null;
 }
 
-// Check if square is under attack by opponent
 export function isSquareUnderAttack(
   board: (Piece | null)[][],
   row: number,
@@ -282,7 +322,6 @@ export function isSquareUnderAttack(
   return false;
 }
 
-// Check if a color is in check
 export function isKingInCheck(board: (Piece | null)[][], color: PieceColor): boolean {
   const kingPos = findKing(board, color);
   if (!kingPos) return false;
@@ -290,14 +329,12 @@ export function isKingInCheck(board: (Piece | null)[][], color: PieceColor): boo
   return isSquareUnderAttack(board, kingPos.row, kingPos.col, opponentColor);
 }
 
-// Clone board helper
 export function cloneBoard(board: (Piece | null)[][]): (Piece | null)[][] {
   return board.map((row) =>
     row.map((piece) => (piece ? { ...piece } : null))
   );
 }
 
-// Strict legal moves: filters out moves that leave king in check
 export function getLegalMoves(
   board: (Piece | null)[][],
   piece: Piece
@@ -322,7 +359,6 @@ export function getLegalMoves(
   return legal;
 }
 
-// Check for checkmate or stalemate
 export function evaluateGameStatus(
   board: (Piece | null)[][],
   currentTurn: PieceColor
@@ -355,7 +391,6 @@ export function evaluateGameStatus(
   return { isCheck: inCheck, isCheckmate: false, isStalemate: false };
 }
 
-// AI evaluation values
 const PIECE_VALUES: Record<PieceType, number> = {
   pawn: 12,
   knight: 34,
@@ -395,44 +430,38 @@ export function selectAIMove(
     }
   }
 
-  // Score evaluation for Medium & Hard
   for (const entry of allMoves) {
     const { piece, move } = entry;
     const target = board[move.row][move.col];
     let score = 0;
 
-    // 1. Capture score (mind shields & magic mirrors!)
     if (target) {
       if (target.equippedItem === 'magic_mirror') {
-        score -= PIECE_VALUES[piece.type] * 2; // Avoid attacking mirror!
+        score -= PIECE_VALUES[piece.type] * 2;
       } else if (target.shield) {
-        score += 6; // Popping a shield is minor positive
+        score += 6;
       } else {
         score += PIECE_VALUES[target.type] * 2.4 - PIECE_VALUES[piece.type] * 0.15;
       }
     }
 
-    // 2. Bonus item collection priority!
     const hasItem = bonusItems.find((it) => it.row === move.row && it.col === move.col);
     if (hasItem) {
       score += 28;
     }
 
-    // 3. Known trap penalty/reward
     const trap = traps.find((t) => t.row === move.row && t.col === move.col && t.revealed);
     if (trap) {
-      if (trap.type === 'freeze' || trap.type === 'banana') {
-        score -= 18;
+      if (trap.type === 'freeze' || trap.type === 'banana' || trap.type === 'tnt' || trap.type === 'glue') {
+        score -= 20;
       } else if (trap.type === 'confetti_pop') {
         score += 15;
       }
     }
 
-    // 4. Center control
     const distToCenter = Math.abs(move.row - 3.5) + Math.abs(move.col - 3.5);
     score += (7 - distToCenter) * 1.6;
 
-    // 5. Pawn advance & promotion
     if (piece.type === 'pawn') {
       const adv = color === 'white' ? 6 - move.row : move.row - 1;
       score += adv * 3.5;
@@ -441,18 +470,15 @@ export function selectAIMove(
       }
     }
 
-    // 6. Safety & Check evaluation on Hard/Medium
     if (difficulty !== 'easy') {
       const simBoard = cloneBoard(board);
       simBoard[move.row][move.col] = { ...piece, row: move.row, col: move.col };
       simBoard[piece.row][piece.col] = null;
 
-      // Does this move put enemy King in check?
       if (isKingInCheck(simBoard, opponentColor)) {
         score += 22;
       }
 
-      // Is destination square defended by opponent?
       if (isSquareUnderAttack(simBoard, move.row, move.col, opponentColor)) {
         if (!piece.shield && piece.equippedItem !== 'magic_mirror') {
           score -= PIECE_VALUES[piece.type] * (difficulty === 'hard' ? 1.2 : 0.6);

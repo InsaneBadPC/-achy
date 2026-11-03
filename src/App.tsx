@@ -54,17 +54,14 @@ interface BoardHistoryEntry {
 }
 
 export default function App() {
-  // Screen state
   const [screen, setScreen] = useState<'title' | 'playing'>('title');
 
-  // Game configuration
   const [gameMode, setGameMode] = useState<GameMode>('ai');
   const [aiDifficulty, setAiDifficulty] = useState<AIDifficulty>('medium');
   const [theme, setTheme] = useState<BoardTheme>('royal_wood');
   const [trapCount, setTrapCount] = useState<number>(6);
   const [bonusItemsEnabled, setBonusItemsEnabled] = useState<boolean>(true);
 
-  // Board state
   const [board, setBoard] = useState<(Piece | null)[][]>(createInitialBoard());
   const [currentTurn, setCurrentTurn] = useState<PieceColor>('white');
   const [turnNumber, setTurnNumber] = useState<number>(1);
@@ -74,22 +71,18 @@ export default function App() {
   const [capturedWhite, setCapturedWhite] = useState<Piece[]>([]);
   const [capturedBlack, setCapturedBlack] = useState<Piece[]>([]);
 
-  // Traps & Items
   const [traps, setTraps] = useState<Trap[]>([]);
   const [bonusItems, setBonusItems] = useState<BonusItem[]>([]);
 
-  // Game Status
   const [isCheck, setIsCheck] = useState<boolean>(false);
   const [isCheckmate, setIsCheckmate] = useState<boolean>(false);
   const [isStalemate, setIsStalemate] = useState<boolean>(false);
   const [winner, setWinner] = useState<PieceColor | 'draw' | null>(null);
 
-  // AI & Multiplayer
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
   const [myColor, setMyColor] = useState<PieceColor>('white');
   const [isMultiplayerConnected, setIsMultiplayerConnected] = useState<boolean>(false);
 
-  // Cameras & Visuals
   const [activeCameraView, setActiveCameraView] = useState<'iso' | 'white' | 'black' | 'top'>('iso');
   const [isFlyInActive, setIsFlyInActive] = useState<boolean>(false);
   const [notifications, setNotifications] = useState<FloatingNotification[]>([]);
@@ -98,20 +91,17 @@ export default function App() {
   const [isMusicOn, setIsMusicOn] = useState<boolean>(soundEngine.isMusicOn());
   const [isVoiceOn, setIsVoiceOn] = useState<boolean>(voiceEngine.isEnabled());
 
-  // Updates & Modals
   const [releaseInfo, setReleaseInfo] = useState<AppReleaseInfo | null>(null);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState<boolean>(false);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isMultiplayerOpen, setIsMultiplayerOpen] = useState<boolean>(false);
 
-  // Refs
   const historyRef = useRef<BoardHistoryEntry[]>([]);
   const quoteTimerRef = useRef<number | null>(null);
   const isAiThinkingRef = useRef<boolean>(false);
   const moveSeqRef = useRef<number>(0);
 
-  // Check for GitHub updates on load and periodically
   const runUpdateCheck = useCallback(async (manual = false) => {
     setIsCheckingUpdate(true);
     try {
@@ -127,22 +117,23 @@ export default function App() {
 
   useEffect(() => {
     runUpdateCheck(false);
-    // Check every 10 minutes in background
     const interval = setInterval(() => runUpdateCheck(false), 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, [runUpdateCheck]);
 
-  // Show a character quote with Czech voice synthesis
-  const triggerCharacterQuote = useCallback((quote: CharacterQuote, force = true) => {
-    soundEngine.speakCharacterVoice(quote.text, quote.pieceType || 'pawn', force);
+  // Trigger character quote and queue speech so voices never get interrupted mid-sentence!
+  const triggerCharacterQuote = useCallback((quote: CharacterQuote, priority = false) => {
     setCurrentQuote(quote);
+    voiceEngine.speak(quote.text, quote.pieceType || 'pawn', priority, () => {
+      // Speech finished
+    });
+
     if (quoteTimerRef.current) clearTimeout(quoteTimerRef.current);
     quoteTimerRef.current = window.setTimeout(() => {
       setCurrentQuote(null);
-    }, 4000);
+    }, 4200);
   }, []);
 
-  // Floating notifications
   const addNotification = useCallback((notif: FloatingNotification) => {
     setNotifications((prev) => [...prev, notif]);
     setTimeout(() => {
@@ -150,7 +141,6 @@ export default function App() {
     }, notif.duration || 2800);
   }, []);
 
-  // Start new match
   const startNewGame = useCallback(
     (mode: GameMode, diff: AIDifficulty, th: BoardTheme) => {
       const initialBoard = createInitialBoard();
@@ -189,7 +179,6 @@ export default function App() {
     [trapCount, bonusItemsEnabled]
   );
 
-  // Push board history for undo
   const saveHistory = useCallback(() => {
     historyRef.current.push({
       board: cloneBoard(board),
@@ -202,7 +191,6 @@ export default function App() {
     });
   }, [board, currentTurn, turnNumber, traps, bonusItems, capturedWhite, capturedBlack]);
 
-  // Execute a move on the board
   const executeMove = useCallback(
     (
       from: { row: number; col: number },
@@ -229,18 +217,16 @@ export default function App() {
       // 1. Attack Target Defense Checks (Magic Mirror & Bubble Shield)
       if (capturedPiece) {
         if (capturedPiece.equippedItem === 'magic_mirror') {
-          // MAGIC MIRROR: Reflects the attack! Attacker is destroyed, defender survives
           soundEngine.playMirror();
-          capturedPiece.equippedItem = null; // Mirror consumed
+          capturedPiece.equippedItem = null;
           moveEffect = 'mirror_reflect';
 
-          // Attacker is captured
           if (movingPiece.color === 'white') {
             setCapturedWhite((prev) => [...prev, movingPiece]);
           } else {
             setCapturedBlack((prev) => [...prev, movingPiece]);
           }
-          newBoard[from.row][from.col] = null; // Attacker disappears
+          newBoard[from.row][from.col] = null;
 
           addNotification({
             id: `mirror-${Date.now()}`,
@@ -250,9 +236,8 @@ export default function App() {
           });
 
           const mirrorQuote = getRandomQuote(capturedPiece.type, 'mirror_reflect');
-          triggerCharacterQuote(mirrorQuote, true);
+          triggerCharacterQuote(mirrorQuote, false);
 
-          // Turn ends without moving piece to destination
           const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
           const status = evaluateGameStatus(newBoard, nextTurn);
           setIsCheck(status.isCheck);
@@ -285,9 +270,8 @@ export default function App() {
         }
 
         if (capturedPiece.shield) {
-          // BUBBLE SHIELD: Pops and deflects the attack, moving piece stays or bumps
           soundEngine.playShield();
-          capturedPiece.shield = false; // Shield popped
+          capturedPiece.shield = false;
           moveEffect = 'shield_block';
 
           addNotification({
@@ -298,9 +282,8 @@ export default function App() {
           });
 
           const shieldQuote = getRandomQuote(capturedPiece.type, 'shield_block');
-          triggerCharacterQuote(shieldQuote, true);
+          triggerCharacterQuote(shieldQuote, false);
 
-          // Moving piece remains on origin square (deflected)
           const nextTurn: PieceColor = currentTurn === 'white' ? 'black' : 'white';
           const status = evaluateGameStatus(newBoard, nextTurn);
           setIsCheck(status.isCheck);
@@ -340,9 +323,9 @@ export default function App() {
           setCapturedBlack((prev) => [...prev, capturedPiece!]);
         }
         const capQuote = getRandomQuote(movingPiece.type, 'capture');
-        triggerCharacterQuote(capQuote, true);
+        triggerCharacterQuote(capQuote, false);
       } else {
-        if (Math.random() < 0.65) {
+        if (Math.random() < 0.6) {
           const moveQuote = getRandomQuote(movingPiece.type, 'move');
           triggerCharacterQuote(moveQuote, false);
         }
@@ -353,7 +336,6 @@ export default function App() {
         moveEffect = 'hammer_smash';
         soundEngine.playHammerSmash();
 
-        // Stun adjacent enemies in 1-square radius
         for (let dr = -1; dr <= 1; dr++) {
           for (let dc = -1; dc <= 1; dc++) {
             if (dr === 0 && dc === 0) continue;
@@ -385,6 +367,15 @@ export default function App() {
           emoji: '🚀',
           color: '#ef4444',
         });
+      } else if (usedItem === 'lightning_rod') {
+        moveEffect = 'lightning_strike';
+        soundEngine.playSpeedBoost();
+        addNotification({
+          id: `lightning-${Date.now()}`,
+          text: 'Bleskový útok! Projel celou linii!',
+          emoji: '⚡',
+          color: '#eab308',
+        });
       }
 
       newBoard[from.row][from.col] = null;
@@ -393,7 +384,8 @@ export default function App() {
         row: to.row,
         col: to.col,
         hasMoved: true,
-        equippedItem: null, // Consume equipped active weapon
+        equippedItem: null,
+        isSlimeStuck: false, // moving clears glue
       };
       newBoard[to.row][to.col] = pieceCopy;
 
@@ -431,13 +423,17 @@ export default function App() {
           }
         }
 
+        if (resolution.stunnedVictims) {
+          stunnedSquares.push(...resolution.stunnedVictims);
+        }
+
         trapDesc = resolution.logText;
         if (resolution.notification) {
           addNotification(resolution.notification);
         }
 
         const trapQuote = getRandomQuote(pieceCopy.type, 'trap', { trapType: trap.type });
-        triggerCharacterQuote(trapQuote, true);
+        triggerCharacterQuote(trapQuote, false);
       }
 
       // 4. Bonus Item Check
@@ -452,9 +448,18 @@ export default function App() {
         if (item.type === 'bubble_shield') {
           currentP.shield = true;
         } else if (item.type === 'speed_potion') {
-          // SPEED POTION: Grants an immediate extra turn!
           soundEngine.playSpeedBoost();
           extraTurnGranted = true;
+        } else if (item.type === 'magnet') {
+          soundEngine.playTeleport();
+          // Pull other bonus items closer if any
+          bonusItems.forEach((b) => {
+            if (b !== item) {
+              b.row = Math.max(0, Math.min(7, Math.round((b.row + finalRow) / 2)));
+              b.col = Math.max(0, Math.min(7, Math.round((b.col + finalCol) / 2)));
+            }
+          });
+          currentP.equippedItem = 'speed_potion'; // Grants quick boost
         } else {
           currentP.equippedItem = item.type;
         }
@@ -463,13 +468,13 @@ export default function App() {
         const info = ITEM_CONFIG[item.type];
         addNotification({
           id: `item-${Date.now()}`,
-          text: `Získán bonus: ${info.name}!`,
+          text: `Získán bonus: ${info.name}! (${info.durationText})`,
           emoji: info.emoji,
           color: info.color,
         });
 
         const itemQuote = getRandomQuote(currentP.type, 'item', { itemType: item.type });
-        triggerCharacterQuote(itemQuote, true);
+        triggerCharacterQuote(itemQuote, false);
       }
 
       // 5. Pawn Promotion Check
@@ -485,7 +490,7 @@ export default function App() {
             color: '#facc15',
           });
           const promoQuote = getRandomQuote('queen', 'promotion');
-          triggerCharacterQuote(promoQuote, true);
+          triggerCharacterQuote(promoQuote, false);
         }
       }
 
@@ -512,7 +517,7 @@ export default function App() {
         }
       }
 
-      // 7. Next Turn Calculation (considering Speed Potion extra turn)
+      // 7. Next Turn Calculation
       const nextTurn: PieceColor = extraTurnGranted
         ? currentTurn
         : currentTurn === 'white'
@@ -533,7 +538,7 @@ export default function App() {
           color: '#ef4444',
         });
         const kingQuote = getRandomQuote('king', 'check');
-        triggerCharacterQuote(kingQuote, true);
+        triggerCharacterQuote(kingQuote, false);
       }
 
       if (status.isCheckmate) {
@@ -586,7 +591,7 @@ export default function App() {
     ]
   );
 
-  // AI Turn Trigger (Fixed: does not self-cancel and properly checks state)
+  // AI Turn Trigger
   useEffect(() => {
     if (
       screen === 'playing' &&
@@ -668,7 +673,6 @@ export default function App() {
         setLegalMoves(moves);
         soundEngine.playSelect();
 
-        // 35% chance to speak on piece selection
         if (Math.random() < 0.35) {
           const selectQuote = getRandomQuote(piece.type, 'select');
           triggerCharacterQuote(selectQuote, false);
@@ -689,7 +693,6 @@ export default function App() {
     ]
   );
 
-  // Undo Move
   const handleUndoMove = useCallback(() => {
     if (historyRef.current.length === 0 || gameMode === 'multiplayer') return;
 
@@ -722,7 +725,6 @@ export default function App() {
     }
   }, [gameMode, currentTurn]);
 
-  // Emotes
   const handleSendEmote = useCallback(
     (emoji: string, text: string) => {
       addNotification({
@@ -744,7 +746,6 @@ export default function App() {
     [addNotification, gameMode, myColor]
   );
 
-  // Multiplayer PeerJS Handlers
   const handleHostRoom = useCallback(async () => {
     return peerMultiplayer.init({
       onConnected: () => {

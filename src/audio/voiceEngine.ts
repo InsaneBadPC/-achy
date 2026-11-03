@@ -1,12 +1,6 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- *
- * Character voice engine.
- * - On Android (Capacitor native) it uses the system Text-to-Speech engine through
- *   @capacitor-community/text-to-speech (Android WebView does NOT support window.speechSynthesis).
- * - In browsers it uses the Web Speech API and picks the best Czech voice available.
- * Every character gets its own vocal profile (pitch / rate) so they sound distinct.
  */
 
 import { Capacitor } from '@capacitor/core';
@@ -19,15 +13,23 @@ interface VoiceProfile {
 }
 
 const PROFILES: Record<PieceType, VoiceProfile> = {
-  pawn: { pitch: 1.75, rate: 1.25 },   // squeaky eager little soldier
-  king: { pitch: 0.6, rate: 0.88 },    // pompous, deep, slow
-  queen: { pitch: 1.35, rate: 1.05 },  // sassy diva
-  knight: { pitch: 1.45, rate: 1.3 },  // hyperactive bouncy steed
-  bishop: { pitch: 0.85, rate: 0.92 }, // mystical old wizard
-  rook: { pitch: 0.45, rate: 0.8 },    // gravelly stone golem
+  pawn: { pitch: 1.75, rate: 1.25 },
+  king: { pitch: 0.6, rate: 0.88 },
+  queen: { pitch: 1.35, rate: 1.05 },
+  knight: { pitch: 1.45, rate: 1.3 },
+  bishop: { pitch: 0.85, rate: 0.92 },
+  rook: { pitch: 0.45, rate: 0.8 },
 };
 
 const STORAGE_KEY = 'wacky-chess-voice';
+
+interface VoiceQueueItem {
+  id: string;
+  text: string;
+  character: PieceType;
+  priority: boolean;
+  onFinish?: () => void;
+}
 
 class VoiceEngine {
   private enabled = true;
@@ -35,7 +37,8 @@ class VoiceEngine {
   private isNative = Capacitor.isNativePlatform();
   private webVoice: SpeechSynthesisVoice | null = null;
   private nativeReady: Promise<boolean> | null = null;
-  private lastSpokenAt = 0;
+  private isSpeaking = false;
+  private queue: VoiceQueueItem[] = [];
 
   constructor() {
     try {
@@ -67,7 +70,6 @@ class VoiceEngine {
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return;
     const czech = voices.filter((v) => v.lang.toLowerCase().startsWith('cs'));
-    // Prefer high quality neural / online voices
     const preferred =
       czech.find((v) => /natural|neural|online/i.test(v.name)) ||
       czech.find((v) => /google/i.test(v.name)) ||
@@ -106,6 +108,8 @@ class VoiceEngine {
   }
 
   public stop() {
+    this.queue = [];
+    this.isSpeaking = false;
     if (this.isNative) {
       TextToSpeech.stop().catch(() => undefined);
     } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -115,41 +119,85 @@ class VoiceEngine {
 
   /**
    * Speak a line in the character's voice.
-   * @param force interrupt anything currently being said
+   * If priority is true, it jumps to front or interrupts.
+   * Otherwise it queues nicely so characters never cut each other off!
    */
-  public async speak(text: string, character: PieceType, force = true) {
-    if (!this.enabled || this.volume <= 0 || !text) return;
-    const now = Date.now();
-    // Avoid machine-gun chatter when lots of events fire at once
-    if (!force && now - this.lastSpokenAt < 900) return;
-    this.lastSpokenAt = now;
+  public speak(text: string, character: PieceType, priority = false, onFinish?: () => void) {
+    if (!this.enabled || this.volume <= 0 || !text) {
+      onFinish?.();
+      return;
+    }
 
-    const profile = PROFILES[character] || { pitch: 1, rate: 1 };
-    // Strip emoji / symbols that TTS engines read out loud
     const clean = text.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}]/gu, '').trim();
+    if (!clean) {
+      onFinish?.();
+      return;
+    }
+
+    const item: VoiceQueueItem = {
+      id: `${Date.now()}-${Math.random()}`,
+      text: clean,
+      character,
+      priority,
+      onFinish,
+    };
+
+    if (priority) {
+      this.stop();
+      this.queue.push(item);
+      this.processQueue();
+    } else {
+      // Limit queue to at most 3 utterances so it never gets clogged
+      if (this.queue.length >= 3) {
+        this.queue.shift();
+      }
+      this.queue.push(item);
+      if (!this.isSpeaking) {
+        this.processQueue();
+      }
+    }
+  }
+
+  private async processQueue() {
+    if (this.queue.length === 0) {
+      this.isSpeaking = false;
+      return;
+    }
+
+    this.isSpeaking = true;
+    const item = this.queue.shift()!;
+    const profile = PROFILES[item.character] || { pitch: 1, rate: 1 };
 
     if (this.isNative) {
       try {
         const czech = await this.ensureNative();
         await TextToSpeech.speak({
-          text: clean,
+          text: item.text,
           lang: czech ? 'cs-CZ' : 'en-US',
           rate: profile.rate,
           pitch: profile.pitch,
           volume: this.volume,
           category: 'ambient',
-          queueStrategy: QueueStrategy.Flush,
+          queueStrategy: QueueStrategy.Add,
         });
       } catch (e) {
         console.warn('Native TTS failed', e);
+      } finally {
+        item.onFinish?.();
+        this.isSpeaking = false;
+        setTimeout(() => this.processQueue(), 200);
       }
       return;
     }
 
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      item.onFinish?.();
+      this.isSpeaking = false;
+      return;
+    }
+
     try {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(clean);
+      const u = new SpeechSynthesisUtterance(item.text);
       if (!this.webVoice) this.pickWebVoice();
       if (this.webVoice) {
         u.voice = this.webVoice;
@@ -160,12 +208,26 @@ class VoiceEngine {
       u.pitch = profile.pitch;
       u.rate = profile.rate;
       u.volume = this.volume;
+
+      u.onend = () => {
+        item.onFinish?.();
+        this.isSpeaking = false;
+        setTimeout(() => this.processQueue(), 150);
+      };
+
+      u.onerror = () => {
+        item.onFinish?.();
+        this.isSpeaking = false;
+        setTimeout(() => this.processQueue(), 100);
+      };
+
       window.speechSynthesis.speak(u);
     } catch (e) {
       console.warn('Speech synthesis error', e);
+      item.onFinish?.();
+      this.isSpeaking = false;
     }
   }
 }
 
 export const voiceEngine = new VoiceEngine();
-

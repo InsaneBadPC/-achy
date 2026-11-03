@@ -9,7 +9,19 @@ import { soundEngine } from '../audio/soundEngine';
 
 export interface ActiveAnimation {
   id: string;
-  type: 'hop' | 'slip' | 'spring' | 'teleport' | 'knockback' | 'hammer_smash' | 'rocket_jump' | 'bump';
+  type:
+    | 'hop'
+    | 'slip'
+    | 'spring'
+    | 'teleport'
+    | 'knockback'
+    | 'hammer_smash'
+    | 'rocket_jump'
+    | 'bump'
+    | 'lightning_strike'
+    | 'smackdown'
+    | 'karate_kick'
+    | 'tornado_spin';
   targetGroup: THREE.Group;
   startX: number;
   startZ: number;
@@ -83,7 +95,7 @@ export class AnimationManager {
       targetZ: target.z,
       duration: 0.65,
       elapsed: 0,
-      rotations: Math.PI * 4, // 2 full spins
+      rotations: Math.PI * 4,
       onComplete,
     });
   }
@@ -108,7 +120,7 @@ export class AnimationManager {
       targetZ: target.z,
       duration: 0.6,
       elapsed: 0,
-      height: 2.2, // High comic spring leap
+      height: 2.2,
       onComplete,
     });
   }
@@ -187,6 +199,31 @@ export class AnimationManager {
     });
   }
 
+  // Animate Lightning strike beam
+  public animateLightningStrike(
+    group: THREE.Group,
+    targetRow: number,
+    targetCol: number,
+    onComplete?: () => void
+  ) {
+    const target = squareToWorld(targetRow, targetCol);
+    soundEngine.playSpeedBoost();
+    this.triggerCameraShake(0.3, 0.4);
+
+    this.activeAnimations.push({
+      id: `lightning-${group.name}-${Date.now()}-${Math.random()}`,
+      type: 'lightning_strike',
+      targetGroup: group,
+      startX: group.position.x,
+      startZ: group.position.z,
+      targetX: target.x,
+      targetZ: target.z,
+      duration: 0.35,
+      elapsed: 0,
+      onComplete,
+    });
+  }
+
   // Attack bounce / shield block bump
   public animateBump(
     group: THREE.Group,
@@ -212,20 +249,29 @@ export class AnimationManager {
     });
   }
 
-  // Animate capture knockback (loser sent flying into orbit)
+  // Funny capture animation variants (smackdown, karate kick, tornado spin, orbit blast)
   public animateCaptureKnockback(
     capturedGroup: THREE.Group,
+    attackerType: string = 'pawn',
     onComplete?: () => void
   ) {
     soundEngine.playCapture();
-    this.triggerHitstop(0.06);
-    this.triggerCameraShake(0.35, 0.4);
+    this.triggerHitstop(0.08);
+    this.triggerCameraShake(0.38, 0.45);
 
     const angle = Math.random() * Math.PI * 2;
     const flyDist = 8;
+    const variants: ('knockback' | 'smackdown' | 'karate_kick' | 'tornado_spin')[] = [
+      'knockback',
+      'smackdown',
+      'karate_kick',
+      'tornado_spin',
+    ];
+    const animType = variants[Math.floor(Math.random() * variants.length)];
+
     this.activeAnimations.push({
       id: `knockback-${capturedGroup.name}-${Date.now()}-${Math.random()}`,
-      type: 'knockback',
+      type: animType,
       targetGroup: capturedGroup,
       startX: capturedGroup.position.x,
       startZ: capturedGroup.position.z,
@@ -233,7 +279,7 @@ export class AnimationManager {
       targetZ: capturedGroup.position.z + Math.sin(angle) * flyDist,
       duration: 0.75,
       elapsed: 0,
-      height: 5.5,
+      height: animType === 'smackdown' ? 2.0 : 6.0,
       onComplete,
     });
   }
@@ -250,7 +296,6 @@ export class AnimationManager {
       if (this.cameraShakeTime < 0) this.cameraShakeTime = 0;
     }
 
-    // Update active animations
     for (let i = this.activeAnimations.length - 1; i >= 0; i--) {
       const anim = this.activeAnimations[i];
       anim.elapsed += dt;
@@ -274,19 +319,19 @@ export class AnimationManager {
         } else {
           group.scale.set(1, 1, 1);
         }
+      } else if (anim.type === 'lightning_strike') {
+        // High speed dash with electric jitter
+        group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress) + (Math.random() - 0.5) * 0.1;
+        group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress) + (Math.random() - 0.5) * 0.1;
+        group.position.y = Math.sin(progress * Math.PI) * 0.4;
       } else if (anim.type === 'hammer_smash') {
-        // High arc leap followed by fast slam down
         group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
         group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
 
-        // Trajectory with fast descent
         const yCurve = progress < 0.6 ? Math.sin((progress / 0.6) * (Math.PI / 2)) : Math.cos(((progress - 0.6) / 0.4) * (Math.PI / 2));
         group.position.y = yCurve * (anim.height || 2.5);
-
-        // Rotation
         group.rotation.x = Math.sin(progress * Math.PI) * 0.8;
       } else if (anim.type === 'bump') {
-        // Move towards target halfway then bounce back
         const p = Math.sin(progress * Math.PI) * 0.5;
         group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, p);
         group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, p);
@@ -310,7 +355,32 @@ export class AnimationManager {
           const s = (progress - 0.5) * 2;
           group.scale.set(s, s, s);
         }
-      } else if (anim.type === 'knockback') {
+      } else if (anim.type === 'tornado_spin') {
+        // Spins like a cartoon Tasmanian Devil into the stratosphere
+        group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
+        group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
+        group.position.y = Math.pow(progress, 1.5) * (anim.height || 6.0);
+        group.rotation.y += dt * 35;
+        const scale = Math.max(0.01, 1 - progress * 0.9);
+        group.scale.set(scale, scale, scale);
+      } else if (anim.type === 'smackdown') {
+        // Squashed completely flat like a comic pancake
+        group.position.x = anim.startX;
+        group.position.z = anim.startZ;
+        const flatScale = Math.max(0.05, 1 - progress);
+        group.scale.set(1 + progress * 0.6, flatScale, 1 + progress * 0.6);
+        group.position.y = -progress * 0.1;
+      } else if (anim.type === 'karate_kick') {
+        // Cartwheel kick flip backwards
+        group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
+        group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
+        group.position.y = Math.sin(progress * Math.PI) * 4.5;
+        group.rotation.x -= dt * 16;
+        group.rotation.z += dt * 8;
+        const scale = Math.max(0.01, 1 - progress * 0.8);
+        group.scale.set(scale, scale, scale);
+      } else {
+        // Standard high orbit knockback
         group.position.x = THREE.MathUtils.lerp(anim.startX, anim.targetX, progress);
         group.position.z = THREE.MathUtils.lerp(anim.startZ, anim.targetZ, progress);
         group.position.y = Math.sin(progress * Math.PI * 0.5) * (anim.height || 5.5);
@@ -394,7 +464,7 @@ export class AnimationManager {
       p.position.y += data.vy * dt;
       p.position.z += data.vz * dt;
 
-      data.vy -= 9.8 * dt * 0.6; // gravity
+      data.vy -= 9.8 * dt * 0.6;
       p.rotation.x += data.rotX * dt;
       p.rotation.y += data.rotY * dt;
 

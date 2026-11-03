@@ -12,7 +12,7 @@ export interface CharacterQuote {
   pieceType?: PieceType;
   color?: PieceColor;
   soundCue?: string;
-  comicTag?: 'BAM!' | 'POW!' | 'WHAM!' | 'OOPS!' | 'ZAP!' | 'BOING!' | 'K.O.!' | 'CRACK!' | 'WOW!' | 'BRR!';
+  comicTag?: 'BAM!' | 'POW!' | 'WHAM!' | 'OOPS!' | 'ZAP!' | 'BOING!' | 'K.O.!' | 'CRACK!' | 'WOW!' | 'BRR!' | 'BOOM!' | 'SMACK!';
 }
 
 export type QuoteEvent =
@@ -31,7 +31,11 @@ export type QuoteEvent =
   | 'extra_turn'
   | 'frozen'
   | 'victory'
-  | 'defeat';
+  | 'defeat'
+  | 'lightning_strike'
+  | 'magnet_pull'
+  | 'tnt_blast'
+  | 'glue_stuck';
 
 type Pool = Record<PieceType, string[]>;
 
@@ -152,6 +156,8 @@ const TRAP_QUOTES: Record<TrapType, string[]> = {
   freeze: ['Brrr! Kdo tady nechal otevřenej mrazák?!', 'Jsem rampouch! Ani hnout!', 'Potřebuju horkej čaj, okamžitě!'],
   swap: ['Cože?! Na cizím poli?!', 'Kouzlo zmatku! Čau na druhé straně!', 'Kde to jsem? A kdo jsi ty?!'],
   confetti_pop: ['Párty! Jsem nezničitelný!', 'Konfety a štít? To je den!', 'Oslavná rána!'],
+  tnt: ['KABOOM! Všude lítá kouř!', 'Moje uši! Kdo to sem dal?!', 'Tlaková vlna level tisíc!'],
+  glue: ['Fuuuj, lepkavej zelenáč!', 'Nemůžu odlepit nohu z dlažby!', 'Tohle nevypere ani babička!'],
 };
 
 const ITEM_QUOTES: Record<ItemType, string[]> = {
@@ -160,15 +166,33 @@ const ITEM_QUOTES: Record<ItemType, string[]> = {
   bubble_shield: ['Bublina aktivována! Ani škrábanec!', 'Jsem v bublině a je mi tu dobře!', 'Zkus to, jestli si troufneš!'],
   magic_mirror: ['Zrcadlo, zrcadlo… kdo je tu nejkrásnější? Já!', 'Kdo na mě zaútočí, ten uvidí!', 'Odrazím všechno!'],
   speed_potion: ['Turbo energie! Hraju znovu!', 'Glo-glo-glo… JDEME NA TO!', 'Cítím se rychlejší než blesk!'],
+  lightning_rod: ['Nabito bleskem! Teď střílím skrz celou šachovnici!', 'Cítím miliony voltů! Uhněte!', 'Blesková show začíná!'],
+  magnet: ['Super magnet sepnut! Všechny bonusy ke mně!', 'Pojďte ke mně, dárečky!', 'Magnetická síla v plném proudu!'],
 };
 
-const EFFECT_QUOTES: Record<'shield_block' | 'mirror_reflect' | 'hammer_smash' | 'rocket_jump' | 'extra_turn' | 'frozen', string[]> = {
+const EFFECT_QUOTES: Record<
+  | 'shield_block'
+  | 'mirror_reflect'
+  | 'hammer_smash'
+  | 'rocket_jump'
+  | 'extra_turn'
+  | 'frozen'
+  | 'lightning_strike'
+  | 'magnet_pull'
+  | 'tnt_blast'
+  | 'glue_stuck',
+  string[]
+> = {
   shield_block: ['Ha! Odrazil ses od mé bubliny!', 'Bublina drží! Zkus to znovu!', 'Boing! Tudy ne, kamaráde!'],
   mirror_reflect: ['Zrcadlo vrátilo úder! Sbohem!', 'Útok se ti vymstil!', 'Podívej se do zrcadla… a zmiz!'],
   hammer_smash: ['BONK! Všichni kolem mají hvězdičky!', 'Kladivo mluví za mě!', 'Zemětřesení v přímém přenosu!'],
   rocket_jump: ['Přeletěl jsem vás všechny!', 'Šššššš… přistání!', 'Vzdušná linka má zpoždění nula minut!'],
   extra_turn: ['Ještě jednou! Ještě jednou!', 'Lektvar zabral, jedeme dál!', 'Jsem tak rychlý, že hraju dvakrát!'],
   frozen: ['Nemůžu se hnout… brrr.', 'Ještě chvilku, jsem zmrzlý!', 'Rozmrazte mě někdo!'],
+  lightning_strike: ['BZZZZT! Bleskový zásah přes půl království!', 'Elektřina vyřešila všechno!', 'Paprsek přesně do černého!'],
+  magnet_pull: ['Cvak! Všechno je na svém místě!', 'Magnetická přitažlivost funguje skvěle!', 'Bonus přímo do kapsy!'],
+  tnt_blast: ['BUM! To byla rána z děla!', 'Výbuch smetl všechno okolo!', 'Dynamit nikdy nezklame!'],
+  glue_stuck: ['Mlask, plác… táhnu se jak těsto.', 'Ten sliz drží líp než žvýkačka!', 'Krok za krokem, pomalu.'],
 };
 
 const SPEAKER_NAMES: Record<PieceType, string> = {
@@ -232,6 +256,10 @@ export function getRandomQuote(
           ? 'BOING!'
           : extraInfo?.trapType === 'freeze'
           ? 'BRR!'
+          : extraInfo?.trapType === 'tnt'
+          ? 'BOOM!'
+          : extraInfo?.trapType === 'glue'
+          ? 'SMACK!'
           : 'ZAP!';
       break;
     case 'item':
@@ -261,6 +289,10 @@ export function getRandomQuote(
     case 'rocket_jump':
     case 'extra_turn':
     case 'frozen':
+    case 'lightning_strike':
+    case 'magnet_pull':
+    case 'tnt_blast':
+    case 'glue_stuck':
       pool = EFFECT_QUOTES[event];
       tag =
         event === 'hammer_smash'
@@ -271,6 +303,10 @@ export function getRandomQuote(
           ? 'BOING!'
           : event === 'frozen'
           ? 'BRR!'
+          : event === 'tnt_blast'
+          ? 'BOOM!'
+          : event === 'lightning_strike'
+          ? 'ZAP!'
           : 'WOW!';
       break;
     case 'victory':
