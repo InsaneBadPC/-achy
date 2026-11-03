@@ -269,6 +269,18 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
         {/* Right: Actions, Battlefield Rules Icon, Mode Switch, Home */}
         <div className="flex items-center gap-2">
+          {/* Prominent New Game Button */}
+          <button
+            onClick={() => {
+              soundEngine.playSelect();
+              onRestartGame();
+            }}
+            className="px-3 sm:px-3.5 py-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-1.5 shadow-lg shadow-emerald-500/25 border border-emerald-300 cursor-pointer transition-all active:scale-95"
+            title="Začít novou hru od 1. tahu"
+          >
+            <RotateCcw className="w-4 h-4 stroke-[2.5]" />
+            <span className="font-['Bangers'] tracking-wider uppercase">Nová hra</span>
+          </button>
           {/* Battlefield Rules Icon */}
           {gameStyle === 'battlefield' && onOpenBattlefieldRules && (
             <button
@@ -331,6 +343,18 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
             {showModeSwitch && (
               <div className="absolute right-0 top-12 w-56 rounded-2xl bg-slate-900 border border-white/15 shadow-2xl p-2.5 flex flex-col gap-1 z-30 animate-in fade-in zoom-in-95">
+                <button
+                  onClick={() => {
+                    soundEngine.playSelect();
+                    onRestartGame();
+                    setShowModeSwitch(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-md transition-all cursor-pointer mb-1 uppercase tracking-wider font-['Bangers'] text-sm active:scale-95"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span>Restartovat (Nová hra)</span>
+                </button>
+                <div className="border-t border-white/10 mb-1" />
                 <span className="text-[10px] font-bold text-slate-400 px-2 py-0.5 uppercase">
                   Režim hráčů (Nová hra):
                 </span>
@@ -600,11 +624,15 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             )}
 
             <button
-              onClick={onRestartGame}
-              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all cursor-pointer"
-              title="Restartovat hru"
+              onClick={() => {
+                soundEngine.playSelect();
+                onRestartGame();
+              }}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Začít novou hru od 1. tahu"
             >
-              <RefreshCw className="w-4 h-4 text-emerald-400" />
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Nová hra</span>
             </button>
           </div>
 
